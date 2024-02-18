@@ -14,6 +14,7 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 )
 
 type Question struct {
@@ -103,6 +104,7 @@ func setupServer() (*gin.Engine, error) {
 	router.GET("/questions", server.QuestionsHandler)
 	router.POST("/answer", server.AnswerHandler)
 	router.POST("/game/end", server.EndGameHandler)
+	router.GET("/ws", server.WsHandler)
 
 	return router, nil
 }
@@ -212,4 +214,65 @@ func loadQuestions() ([]Question, error) {
 	}
 
 	return questions, nil
+}
+
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool {
+		return true // Allow connections from any origin
+	},
+}
+
+func (gs *GameServer) WsHandler(c *gin.Context) {
+	w := c.Writer
+	r := c.Request
+
+	// Create a ticker that ticks every second
+	ticker := time.NewTicker(100 * time.Millisecond)
+
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to establish WebSocket connection"})
+		return
+	}
+	somefunc := func() {
+		log.Println("close the websocket conn")
+		conn.Close()
+
+		log.Println("stop the ticker")
+		ticker.Stop()
+	}
+	defer somefunc()
+
+	spamcount := 0
+	for {
+		select {
+		case <-ticker.C:
+			spamcount++
+			// Send a message every tick
+			message := fmt.Sprintf("Spam message %d from server", spamcount)
+			if err := conn.WriteMessage(websocket.TextMessage, []byte(message)); err != nil {
+				log.Println("Write error:", err)
+				//return // Exit the loop and end the connection on error
+			}
+		}
+	}
+	//
+	//for {
+	//	log.Println("send a message down the websocket")
+	//	if err := conn.WriteMessage(messageType, p); err != nil {
+	//		log.Println("ending the loop due to echoing the message back. wait, wtf message?")
+	//		return // Ends the loop if an error occurs
+	//	}
+	//
+	//	//messageType, p, err := conn.ReadMessage()
+	//	//if err != nil {
+	//	//	log.Printf("ending the loop due to error: %s", err.Error())
+	//	//	return // Ends the loop if the connection is closed or an error occurs
+	//	//}
+	//	//// Echo the received message back to the client
+	//	//if err := conn.WriteMessage(messageType, p); err != nil {
+	//	//	log.Println("ending the loop due to echoing the message back. wait, wtf message?")
+	//	//	return // Ends the loop if an error occurs
+	//	//}
+	//}
 }

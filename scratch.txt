@@ -1,0 +1,43 @@
+//the test above is a good start. we need to make it multiplayer. lets modify the test so that we start a game lobby before starting the game. we'll get a game lobby id back. each player has their own session to identify the player.
+
+//players will start a new lobby with a POST to /game/newlobby, the post body should include a questioncount in the json. the code 200 response should be json that includes a lobby id.
+//players will join a lobby with a POST to /game/joinlobby with a lobby id in the json body of the request. code 200 means they joined the lobby. the server side code will assign a sessionid for that player and return it in the response, along with the lobby id, which may be newly created if the request didnt specify one by the server. lobbies can only be joined while the game in a "waiting" state, if in any other state then give a code 400
+//the client should note the sessionid returned in the json response to that lobby join request.
+
+//any player can start the game by POSTing to /game/start with the lobby id and their sessionid in the POST json body. doing so should cause the game state to change from waiting to starting
+//the server should allocate the shuffled questions, in the number specified by the question count, up to the maximum number of uniquely configured questions, at this time as well. each player of a lobby should get the same questions in sequence. in our test we can have player1 and player2 both query to /game/question with a POST containing the lobby id and their session id. the question received should be the same for both players
+//the current question is selected by the game starting or by a question having its correct answer submitted, there is only one current question at a time.
+//the endpoint that is serving the questions should give a code 400 if the game is waiting or starting or ended (any state other than started)
+//an alternative idea is to have a question serving endpoint block until the next question is available, perhaps /game/nextquestion - which would block until the server has selected a question in the game equal to or higher than the specified question index in the POSTed request body to this endpoint. eg requesting nextquestion with question index 0 will not respond with a question until the game is in such a state that question index 0 is the current one. when the game is first starting and the countdown is still ticking, a request for question 0 would be blocked until the game has actually started, then the response should give the first question. a request for question index 0 when question index 1 is the current question will respond with question index 1.
+
+// players will POST their answer to the question at /game/answer including the lobby id, question id and the answer index in the json post body. players should be only submitting answers to the current question, submissions for other questions should get a code 400 response. the first player to submit a correct answer for the current question is awarded points in the game, and the next question will be set, or the game will end if it was the last question.
+if it was the last question being answered with a correct answer then the game is ended. response to submitting answer to the current question should include whether it was correctly answered or not. ideally, when a correct answer to the current question was recorded here, some kind of notification will go out to connected game clients instructing them to move to the next question index, including the next question index, id, and text/answers.
+
+//a game/status endpoint should accept POST requests with a lobby id and respond with a game status json dictionary containing status key with values like "waiting", "starting", "started", "ended", and another key for "scores". under scores will be an array of 2 element arrays, one for each player with a sessionid in the game lobby., each of the 2 element arrays will just contain the session id and the points total for that player.
+
+//once the game is starting a countdown timer happens in the server. connected players should receive a message from the server somehow (tbd), telling them the game is starting
+//once the game has started then /game/question
+
+//we should set up a test that has 2 players join this lobby, first player will POST to /game/newlobby and then both players will make a post to /game/joinlobby with the same lobby id. each player should get a unique session id in response, and we should confirm that they did and the session ids are unique.
+
+you are the assistant who likes to write tests and the code that satisfies them.
+i need golang code to test and implement a state machine for a multiplayer online trivia game.
+1 - the lobbies data structure should track all the game lobbies that the running server knows about.
+2 - game lobby struct should be able to be constructed with a unique uuid and save it into itself. it should also accept a question count and countdown timer milliseconds value. it should have a state with possible values 'waiting', 'starting', 'started', 'ended', as well as a list of players attached, and the default state when it is first created should be 'waiting'.
+3 - getting or setting game lobby status should use a mutex
+4 - a game lobby can have a player added to its list with a addplayer method, accepting a session id. but we should not be able to add a player unless the lobby is still 'waiting'
+5 - a game lobby can start its countdown by the startgame method, which must use a mutex to update the status to 'starting', select the game shuffled questions, and then engage the timer. a mechanism for the timer should be proposed by the assistant (please elaborate)
+6 - when the timer runs out, the game should be set to 'started' state.
+7 - a player struct, as a member of a game lobby, should have fields for its session id and current score.
+8 - a game lobby struct needs to track the current question index
+9 - the game lobby struct should have a method to get the current question index
+10 - the game lobby struct should have a method to submit an answer for the current question - accept a question id and answer index. the method should return an error if the question id does not match the id of the current question, or if the game is ended.
+11 - if all players have submitted an answer but nobody got it correct, then move on to the next question.
+
+please note that in the above description, the "current question" is just the currently chosen question index from the randomized list of questions which the lobby set itself up with. when the game is started this will be 0 and it will increment with each correct answer until all the questions are answered and the game is set into a 'ended' status.
+please elaborate on the mechanism we can use to satisfy the notification of the connected clients for item 5.
+please enumerate the requirements listed above and your solution for each step, enhancing proposed structs and tests as you go.
+
+
+
+

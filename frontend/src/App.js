@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import "./App.css";
 
 // Use REACT_APP_BACKEND_URL or http://localhost:8080 as the API_BASE
@@ -11,6 +11,24 @@ function App() {
   const [score, setScore] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [serverMessage, setServerMessage] = useState('');
+
+  useEffect(() => {
+    const ws = new WebSocket('ws://localhost:8080/ws');
+
+    ws.onopen = () => {
+      console.log('WebSocket Connected');
+    };
+
+    ws.onmessage = (event) => {
+      setServerMessage(event.data);
+    };
+
+    return () => {
+      console.log('calling ws.close() ...');
+      ws.close();
+    };
+  }, []);
 
   const startGame = async () => {
     setLoading(true);
@@ -103,6 +121,11 @@ function App() {
 
   return (
     <div className="App">
+      {/* New WebSocket message display */}
+      <div className="websocket-panel">
+        Server Says: {serverMessage}
+      </div>
+
       {!gameSession ? (
         <button onClick={startGame}>Start Game</button>
       ) : (
@@ -117,6 +140,7 @@ function App() {
               {option}
             </button>
           ))}
+          <p>yay frontend</p>
           <p className="score">Score: {score}</p>
         </div>
       )}
