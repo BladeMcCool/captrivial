@@ -13,8 +13,18 @@ type Lobbies struct {
 }
 
 type Player struct {
-	SessionID string
-	Score     int
+	SessionID         string
+	Score             int
+	QuestionsAnswered []string //to hold the ids of the questions that the player answered, in case 'no player answers it correctly first', so we have some way to track it.
+}
+
+func (p *Player) HasAnsweredQuestion(questionID string) bool {
+	for _, qId := range p.QuestionsAnswered {
+		if qId == questionID {
+			return true
+		}
+	}
+	return false
 }
 
 type GameState int
@@ -73,7 +83,7 @@ func (g *GameLobby) AddPlayer(sessionID string) error {
 		return errors.New("cannot add player, lobby is not in waiting state")
 	}
 
-	g.Players = append(g.Players, &Player{SessionID: sessionID, Score: 0})
+	g.Players = append(g.Players, &Player{SessionID: sessionID, Score: 0, QuestionsAnswered: []string{}})
 	return nil
 }
 
@@ -124,9 +134,21 @@ func (g *GameLobby) SubmitAnswer(playerSessionID string, questionID string, answ
 		return errors.New("player not found")
 	}
 
+	// If this player already recorded an answer for this question, then reject this answer.
+	if player.HasAnsweredQuestion(questionID) {
+		return errors.New("player already answered this question")
+	}
+
+	// Record the fact that this player answered this question.
+	player.QuestionsAnswered = append(player.QuestionsAnswered, questionID)
+
 	// Validate the answer
 	if answerIndex != currentQuestion.CorrectIndex {
-		return errors.New("incorrect answer")
+		if !g.allPlayersAnswered(questionID) {
+			return errors.New("incorrect answer")
+		} else {
+			return errors.New("incorrect answer (from all players now)")
+		}
 	}
 
 	// Answer is correct, update player's score
@@ -134,11 +156,25 @@ func (g *GameLobby) SubmitAnswer(playerSessionID string, questionID string, answ
 	player.Score += 2
 
 	// Check if the game has ended and update its state if so.
-	g.checkIfGameEnded()
+	g.setNextQuestionOrEndGame()
 	return nil
 }
 
-func (g *GameLobby) checkIfGameEnded() {
+func (g *GameLobby) allPlayersAnswered(questionID string) bool {
+	allPlayersAnswered := true
+	for _, p := range g.Players {
+		if !p.HasAnsweredQuestion(questionID) {
+			allPlayersAnswered = false
+			break
+		}
+	}
+	if allPlayersAnswered {
+		g.setNextQuestionOrEndGame()
+	}
+	return allPlayersAnswered
+}
+
+func (g *GameLobby) setNextQuestionOrEndGame() {
 	// Increment the current question index or end the game if all questions are answered
 	if g.CurrentQuestionIndex < len(g.Questions)-1 {
 		g.CurrentQuestionIndex++
