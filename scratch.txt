@@ -38,6 +38,12 @@ please note that in the above description, the "current question" is just the cu
 please elaborate on the mechanism we can use to satisfy the notification of the connected clients for item 5.
 please enumerate the requirements listed above and your solution for each step, enhancing proposed structs and tests as you go.
 
+-------------------
+additonal considerations:
+ready check before start can be engaged? all players would have to ready up
+points per question? r/n we just give 2 points but maybe harder questions could have more points
+game max players? r/n the number of players that can join a lobby is unrestricted
+cleanup of old lobbies? r/n they'll just pile up in memory. cleanup channel perhaps could receive message about game done-ness and then remove it?
 
 
 

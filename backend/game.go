@@ -2,14 +2,46 @@ package main
 
 import (
 	"errors"
+	"github.com/google/uuid"
 	"math/rand"
 	"sync"
 	"time"
 )
 
+// TODO consider about cleanup of lobbies, perhaps when a game ends something can clean it out.
 type Lobbies struct {
 	mutex   sync.Mutex
 	lobbies map[string]*GameLobby
+}
+
+// GetLobby attempts to find and return a lobby by its ID.
+// Returns a pointer to the GameLobby and a boolean indicating whether the lobby was found.
+func (l *Lobbies) GetLobby(lobbyId string) (*GameLobby, bool) {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+
+	lobby, found := l.lobbies[lobbyId]
+	return lobby, found
+}
+
+func (l *Lobbies) AddLobby(questionCount, countdown int, player *Player) string {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+
+	// Generate a unique ID for the new lobby
+	newLobbyID := uuid.New().String()
+
+	// Create a new GameLobby instance
+	newLobby := NewGameLobby(questionCount, countdown)
+
+	// If a player instance is provided, add the player to the new lobby
+	if player != nil {
+		newLobby.AddPlayer(player.SessionID)
+	}
+
+	// Add the new lobby to the lobbies map
+	l.lobbies[newLobbyID] = newLobby
+	return newLobbyID
 }
 
 type Player struct {
@@ -49,7 +81,7 @@ type GameLobby struct {
 
 func NewGameLobby(questionCount, countdown int) *GameLobby {
 	return &GameLobby{
-		LobbyId:              generateSessionID(), //probably replace this with something better for both session and lobbyid generation. maybe a uuid
+		//LobbyId:              generateSessionID(), //probably replace this with something better for both session and lobbyid generation. maybe a uuid
 		QuestionCount:        questionCount,
 		Countdown:            countdown,
 		State:                Waiting,
@@ -83,12 +115,22 @@ func (g *GameLobby) AddPlayer(sessionID string) error {
 		return errors.New("cannot add player, lobby is not in waiting state")
 	}
 
+	// Check if the sessionID is already in the list of players
+	for _, player := range g.Players {
+		if player.SessionID == sessionID {
+			return errors.New("player with this sessionID is already added")
+		}
+	}
+
 	g.Players = append(g.Players, &Player{SessionID: sessionID, Score: 0, QuestionsAnswered: []string{}})
 	return nil
 }
 
-func (g *GameLobby) StartGame(questionPool []*Question) {
+func (g *GameLobby) StartGame(questionPool []*Question) error {
 	g.mutex.Lock()
+	if g.State != Waiting {
+		return errors.New("Game already started")
+	}
 	g.State = Starting
 	g.mutex.Unlock()
 
@@ -102,23 +144,25 @@ func (g *GameLobby) StartGame(questionPool []*Question) {
 		g.mutex.Unlock()
 
 		// Notification mechanism to connected clients (elaborated below)
+		// and how exactly is the question getting in front of the player now?
 	}()
+	return nil
 }
 
-func (g *GameLobby) SubmitAnswer(playerSessionID string, questionID string, answerIndex int) error {
+func (g *GameLobby) SubmitAnswer(playerSessionID string, questionID string, answerIndex int) (error, int) {
 	g.mutex.Lock()
 	defer g.mutex.Unlock()
 
 	if g.State == Ended {
-		return errors.New("game has already ended")
+		return errors.New("game has already ended"), 0
 	}
 	if g.State != Started {
-		return errors.New("game is not started")
+		return errors.New("game is not started"), 0
 	}
 
 	currentQuestion := g.Questions[g.CurrentQuestionIndex]
 	if questionID != currentQuestion.ID {
-		return errors.New("incorrect question ID") //should only be trying to answer the question that is currently in front of all players.
+		return errors.New("incorrect question ID"), 0 //should only be trying to answer the question that is currently in front of all players.
 	}
 
 	// Find the player
@@ -131,12 +175,12 @@ func (g *GameLobby) SubmitAnswer(playerSessionID string, questionID string, answ
 	}
 
 	if player == nil {
-		return errors.New("player not found")
+		return errors.New("player not found"), 0
 	}
 
 	// If this player already recorded an answer for this question, then reject this answer.
 	if player.HasAnsweredQuestion(questionID) {
-		return errors.New("player already answered this question")
+		return errors.New("player already answered this question"), 0
 	}
 
 	// Record the fact that this player answered this question.
@@ -145,19 +189,20 @@ func (g *GameLobby) SubmitAnswer(playerSessionID string, questionID string, answ
 	// Validate the answer
 	if answerIndex != currentQuestion.CorrectIndex {
 		if !g.allPlayersAnswered(questionID) {
-			return errors.New("incorrect answer")
+			return errors.New("incorrect answer"), 0
 		} else {
-			return errors.New("incorrect answer (from all players now)")
+			return errors.New("incorrect answer (from all players now)"), 0
 		}
 	}
 
 	// Answer is correct, update player's score
-	// the requirements suggests adding "points" :D - perhaps in future each question could have its own number of points so that harder questions are worth more than easier ones?
-	player.Score += 2
+	// using the same number of points that was coded in the original http handler for correct answer.
+	awardedPoints := 10
+	player.Score += awardedPoints
 
 	// Check if the game has ended and update its state if so.
 	g.setNextQuestionOrEndGame()
-	return nil
+	return nil, awardedPoints
 }
 
 func (g *GameLobby) allPlayersAnswered(questionID string) bool {

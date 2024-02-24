@@ -58,13 +58,14 @@ func generateSessionID() string {
 }
 
 type GameServer struct {
-	Questions []Question
+	Questions []*Question
 	Sessions  *SessionStore
+	Lobbies   *Lobbies
 }
 
 func main() {
 	// Setup the server
-	router, err := setupServer()
+	router, _, err := setupServer()
 	if err != nil {
 		log.Fatalf("Server setup failed: %v", err)
 	}
@@ -82,14 +83,15 @@ func main() {
 
 // setupServer configures and returns a new Gin instance with all routes.
 // It also returns an error if there is a failure in setting up the server, e.g. loading questions.
-func setupServer() (*gin.Engine, error) {
+func setupServer() (*gin.Engine, *GameServer, error) {
 	questions, err := loadQuestions()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	sessions := &SessionStore{Sessions: make(map[string]*PlayerSession)}
-	server := NewGameServer(questions, sessions)
+	lobbies := &Lobbies{lobbies: make(map[string]*GameLobby)}
+	server := NewGameServer(questions, sessions, lobbies)
 
 	// Create Gin router and setup routes
 	router := gin.Default()
@@ -100,25 +102,98 @@ func setupServer() (*gin.Engine, error) {
 	config.AllowAllOrigins = true
 	router.Use(cors.New(config))
 
+	// windows cmd curl:
+	// curl -v -H "Content-Type: application/json" -d "{\"questionCount\":3,\"countdownMs\":5000}" http://localhost:8080/game/newlobby
+	router.POST("/game/newlobby", server.NewLobbyHandler)
+	// curl -v http://localhost:8080/game/joinlobby/740ee5bc-0acc-4ff7-9483-4f65ea652638 //using a GET request b/c the url is supposed to be share-able, and i expect ppl to be able to copy/paste it into browser address bar.
+	router.GET("/game/joinlobby/:lobbyId", server.JoinLobbyHandler)
 	router.POST("/game/start", server.StartGameHandler)
-	router.GET("/questions", server.QuestionsHandler)
-	router.POST("/answer", server.AnswerHandler)
-	router.POST("/game/end", server.EndGameHandler)
-	router.GET("/ws", server.WsHandler)
+	router.POST("/game/answer", server.AnswerHandler)
 
-	return router, nil
+	//router.POST("/game/end", server.EndGameHandler)
+	//router.GET("/questions", server.QuestionsHandler)
+	router.GET("/game/events", server.WsHandler)
+
+	return router, server, nil
 }
 
-func NewGameServer(questions []Question, store *SessionStore) *GameServer {
+func NewGameServer(questions []*Question, store *SessionStore, lobbies *Lobbies) *GameServer {
 	return &GameServer{
 		Questions: questions,
 		Sessions:  store,
+		Lobbies:   lobbies,
 	}
 }
 
-func (gs *GameServer) StartGameHandler(c *gin.Context) {
+func (gs *GameServer) NewLobbyHandler(c *gin.Context) {
+	var gameParams struct {
+		QuestionCount int `json:"questionCount"`
+		CountdownMs   int `json:"countdownMs"`
+	}
+	if err := c.ShouldBindJSON(&gameParams); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body: " + err.Error()})
+		return
+	}
+
 	sessionID := gs.Sessions.CreateSession()
-	c.JSON(http.StatusOK, gin.H{"sessionId": sessionID})
+	lobbyID := gs.Lobbies.AddLobby(gameParams.QuestionCount, gameParams.CountdownMs, &Player{
+		SessionID:         sessionID,
+		Score:             0,
+		QuestionsAnswered: []string{},
+	})
+	c.JSON(http.StatusOK, gin.H{"sessionId": sessionID, "lobbyId": lobbyID, "questionCount": gameParams.QuestionCount, "countdownMs": gameParams.CountdownMs})
+}
+
+func (gs *GameServer) JoinLobbyHandler(c *gin.Context) {
+	// Extracting the lobby ID from the URL path
+	lobbyId := c.Param("lobbyId")
+	if lobbyId == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing lobby ID"})
+		return
+	}
+
+	// Assuming you have a method to retrieve a lobby by its ID and another to add a player to a lobby
+	lobby, found := gs.Lobbies.GetLobby(lobbyId)
+	if !found {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Lobby not found"})
+		return
+	}
+
+	// AddPlayer is a method that adds a player to the specified lobby and returns an error if it fails
+	log.Printf("JoinLobbyHandler, put another player into lobby id: %s", lobbyId)
+	sessionId := gs.Sessions.CreateSession() //treat as a new player when joining a lobby. session is to identify the player within the lobby.
+	err := lobby.AddPlayer(sessionId)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to join lobby: " + err.Error()})
+		return
+	}
+
+	// Respond with a success message or other relevant information
+	c.JSON(http.StatusOK, gin.H{"message": "Joined lobby successfully", "lobbyId": lobbyId, "sessionId": sessionId})
+}
+
+func (gs *GameServer) StartGameHandler(c *gin.Context) {
+	var lobbyParams struct {
+		LobbyId string `json:"lobbyId"`
+	}
+	if err := c.ShouldBindJSON(&lobbyParams); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body: " + err.Error()})
+		return
+	}
+
+	lobby, found := gs.Lobbies.GetLobby(lobbyParams.LobbyId)
+	if !found {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to find lobby: " + lobbyParams.LobbyId})
+		return
+	}
+
+	err := lobby.StartGame(gs.Questions)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start game: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"countdownMs": lobby.Countdown, "questionCount": lobby.QuestionCount})
 }
 
 func (gs *GameServer) QuestionsHandler(c *gin.Context) {
@@ -130,6 +205,7 @@ func (gs *GameServer) AnswerHandler(c *gin.Context) {
 	var submittedAnswer struct {
 		SessionID  string `json:"sessionId"`
 		QuestionID string `json:"questionId"`
+		LobbyId    string `json:"lobbyId"`
 		Answer     int    `json:"answer"`
 	}
 	if err := c.ShouldBindJSON(&submittedAnswer); err != nil {
@@ -137,26 +213,25 @@ func (gs *GameServer) AnswerHandler(c *gin.Context) {
 		return
 	}
 
-	session, exists := gs.Sessions.GetSession(submittedAnswer.SessionID)
-	if !exists {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Session not found"})
+	lobby, found := gs.Lobbies.GetLobby(submittedAnswer.LobbyId)
+	if !found {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to find lobby: " + submittedAnswer.LobbyId})
 		return
 	}
 
-	correct, err := gs.checkAnswer(submittedAnswer.QuestionID, submittedAnswer.Answer)
+	err, points := lobby.SubmitAnswer(submittedAnswer.SessionID, submittedAnswer.QuestionID, submittedAnswer.Answer)
+	//the errors here can all be treated as non-errors, the important part is whether any points was awarded. we could maybe get more info and track a score but the server is going to keep track and push updates to the client so, not worrying about it here.
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Question not found"})
+		c.JSON(http.StatusOK, gin.H{
+			"submissionError": err.Error(),
+		})
 		return
-	}
-
-	if correct {
-		session.Score += 10 // Increment score for correct answer
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"correct":      correct,
-		"currentScore": session.Score, // Return the current score
+		"points": points,
 	})
+
 }
 
 func (gs *GameServer) EndGameHandler(c *gin.Context) {
@@ -186,7 +261,7 @@ func (gs *GameServer) checkAnswer(questionID string, submittedAnswer int) (bool,
 	return false, errors.New("question not found")
 }
 
-func shuffleQuestions(questions []Question) []Question {
+func shuffleQuestions(questions []*Question) []Question {
 	rand.Seed(time.Now().UnixNano())
 	qs := make([]Question, len(questions))
 
@@ -202,13 +277,13 @@ func shuffleQuestions(questions []Question) []Question {
 	return qs
 }
 
-func loadQuestions() ([]Question, error) {
+func loadQuestions() ([]*Question, error) {
 	fileBytes, err := ioutil.ReadFile("questions.json")
 	if err != nil {
 		return nil, err
 	}
 
-	var questions []Question
+	var questions []*Question
 	if err := json.Unmarshal(fileBytes, &questions); err != nil {
 		return nil, err
 	}

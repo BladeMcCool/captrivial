@@ -66,7 +66,7 @@ func answerQuestions(t *testing.T, gameLobby *GameLobby, playerID string, delays
 
 		// Submit the answer after the delay.
 		t.Logf("Player %s, believes currentIndex to be %d - submitting answer index %d (correct? %t) for this question with ID %s", playerID, currentIndex, answerIndex, correctness[currentIndex], currentQuestionID)
-		err := gameLobby.SubmitAnswer(playerID, currentQuestionID, answerIndex)
+		err, _ := gameLobby.SubmitAnswer(playerID, currentQuestionID, answerIndex)
 		answeredQuestions[currentIndex] = true // Mark this question as answered.
 		if err != nil {
 			t.Logf("Player %s failed to submit answer for question %s: %v", playerID, currentQuestionID, err)
@@ -158,5 +158,45 @@ func TestPlayer2IsWrong(t *testing.T) {
 	player2Score := lobby.Players[1].Score
 	if player2Score >= player1Score {
 		t.Errorf("Expected player 2 to have a higher score. Player 1: %d, Player 2: %d", player1Score, player2Score)
+	}
+}
+
+func TestAddingLobbiesWithAndWithoutPlayer(t *testing.T) {
+	// Initialize the Lobbies instance
+	lobbies := Lobbies{
+		lobbies: make(map[string]*GameLobby),
+	}
+
+	// Add the first game lobby without a player
+	lobbies.AddLobby(3, 100, nil)
+
+	// Verify there is 1 game in the lobbies with no players
+	if len(lobbies.lobbies) != 1 {
+		t.Fatalf("Expected 1 game in the lobbies, found %d", len(lobbies.lobbies))
+	}
+
+	for _, lobby := range lobbies.lobbies {
+		if len(lobby.Players) != 0 {
+			t.Errorf("Expected 0 players in the first game lobby, found %d", len(lobby.Players))
+		}
+	}
+
+	// Add a second game lobby with a player
+	player := &Player{SessionID: "player1"}
+	lobbies.AddLobby(5, 200, player)
+
+	// Verify there are 2 games in the lobbies
+	if len(lobbies.lobbies) != 2 {
+		t.Fatalf("Expected 2 games in the lobbies, found %d", len(lobbies.lobbies))
+	}
+
+	// Verify only one of the lobbies has a player
+	playerCount := 0
+	for _, lobby := range lobbies.lobbies {
+		playerCount += len(lobby.Players)
+	}
+
+	if playerCount != 1 {
+		t.Errorf("Expected 1 total player across all lobbies, found %d", playerCount)
 	}
 }
