@@ -147,7 +147,7 @@ func TestFullGameSinglePlayer(t *testing.T) {
 		t.Errorf("Response should contain a sessionId")
 	}
 
-	resp, err = http.Post(testHttpServer.URL+"/game/start", "application/json", strings.NewReader(fmt.Sprintf(`{"lobbyId":"%s"}`, response.LobbyId)))
+	resp, err = http.Post(testHttpServer.URL+"/game/start", "application/json", strings.NewReader(fmt.Sprintf(`{"lobbyId":"%s","sessionId":"%s"}`, response.LobbyId, response.SessionId)))
 	defer resp.Body.Close()
 	if err != nil {
 		t.Fatalf("Failed to start a new game: %v", err)
@@ -155,11 +155,10 @@ func TestFullGameSinglePlayer(t *testing.T) {
 
 	// Check for the correct status code
 	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Expected status OK; got %v", resp.Status)
+		t.Fatalf("Expected status OK; got %v", resp.Status)
 	}
 
 	// JSON response will tell us when the game is starting (mostly just informational since we should be subscribing to an event stream of some kind to actually get the first question)
-
 	//bodyBytes, err := ioutil.ReadAll(resp.Body)
 	//if err != nil {
 	//	t.Fatalf("Failed to read response body: %v", err)
@@ -168,17 +167,17 @@ func TestFullGameSinglePlayer(t *testing.T) {
 	//fmt.Println("Response body:", bodyText)
 
 	var startResponse struct {
-		CountdownMs *int `json:"countdownMs"`
+		CountdownMs int `json:"countdownMs"`
 	}
 	err = json.NewDecoder(resp.Body).Decode(&startResponse)
 	if err != nil {
 		t.Fatalf("Failed to decode JSON response: %v", err)
 	}
-	t.Logf("Game starts in %d ms", *startResponse.CountdownMs)
+	t.Logf("Game starts in %d ms", startResponse.CountdownMs)
 
-	// Check if a CountdownMs has been returned
-	if startResponse.CountdownMs == nil {
-		t.Errorf("Response should contain a CountdownMs")
+	// a nonzero CountdownMs should be present -- unless we want to support instant start in which case we can remove this sort of check b/c 0 is then valid.
+	if startResponse.CountdownMs == 0 {
+		t.Errorf("Response should contain a nonzero CountdownMs")
 	}
 
 	//attempt to just submit some answer to the first question, even though the game isn't started. should get some kind of error response.
@@ -194,8 +193,8 @@ func TestFullGameSinglePlayer(t *testing.T) {
 		t.Fatalf("should have got an error message about the game not being started yet.")
 	}
 
-	//sleep for the duration until we know the game should be started.
-	time.Sleep(time.Duration(*startResponse.CountdownMs) * time.Millisecond)
+	//sleep for the duration until we know the game should be started
+	time.Sleep(time.Duration(startResponse.CountdownMs) * time.Millisecond)
 
 	//not implementing the streaming event recovery here just at the moment, lets inspect the lobby/game to determine question/answer to use for a happy path.
 	//we will just submit the 3 correct answers in a row back to back and confirm that the game is now ended and that we got the 6 points.
@@ -236,7 +235,7 @@ func TestFullGameSinglePlayer(t *testing.T) {
 		t.Fatalf("last question was answered and points awarded - game should be over now.")
 	}
 	if gameStatusResponse.WinningScore != 30 { //3 questions, 10 points each
-		t.Fatalf("last question was answered and points awarded - game should be over now.")
+		t.Fatalf("unexpected winning score")
 	}
 	//confirm that there is only one winner, and that it is us.
 	if len(gameStatusResponse.Winners) != 1 {
@@ -298,9 +297,9 @@ func TestFullGameMultiPlayer(t *testing.T) {
 		t.Fatalf("Failed to decode JSON response: %v", err)
 	}
 	t.Logf("%+v", p2response)
-	t.Fatalf("stop here")
+	player2SessionId := p2response.SessionId
 
-	resp, err = http.Post(testHttpServer.URL+"/game/start", "application/json", strings.NewReader(fmt.Sprintf(`{"lobbyId":"%s"}`, response.LobbyId)))
+	resp, err = http.Post(testHttpServer.URL+"/game/start", "application/json", strings.NewReader(fmt.Sprintf(`{"lobbyId":"%s","sessionId":"%s"}`, response.LobbyId, player2SessionId)))
 	defer resp.Body.Close()
 	if err != nil {
 		t.Fatalf("Failed to start a new game: %v", err)
@@ -311,59 +310,35 @@ func TestFullGameMultiPlayer(t *testing.T) {
 		t.Errorf("Expected status OK; got %v", resp.Status)
 	}
 
-	// JSON response will tell us when the game is starting (mostly just informational since we should be subscribing to an event stream of some kind to actually get the first question)
-
-	//bodyBytes, err := ioutil.ReadAll(resp.Body)
-	//if err != nil {
-	//	t.Fatalf("Failed to read response body: %v", err)
-	//}
-	//bodyText := string(bodyBytes)
-	//fmt.Println("Response body:", bodyText)
-
 	var startResponse struct {
-		CountdownMs *int `json:"countdownMs"`
+		CountdownMs int `json:"countdownMs"`
 	}
 	err = json.NewDecoder(resp.Body).Decode(&startResponse)
 	if err != nil {
 		t.Fatalf("Failed to decode JSON response: %v", err)
 	}
-	t.Logf("Game starts in %d ms", *startResponse.CountdownMs)
-
-	// Check if a CountdownMs has been returned
-	if startResponse.CountdownMs == nil {
-		t.Errorf("Response should contain a CountdownMs")
-	}
-
-	//attempt to just submit some answer to the first question, even though the game isn't started. should get some kind of error response.
-	resp, err = http.Post(testHttpServer.URL+"/game/answer", "application/json", strings.NewReader(fmt.Sprintf(`{"sessionId":"%s", "lobbyId":"%s", "questionId":"%s", "answer":%d}`, response.SessionId, response.LobbyId, "", 0)))
-	defer resp.Body.Close()
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatalf("Failed to read response body: %v", err)
-	}
-	bodyText := string(bodyBytes)
-	fmt.Println("Response body:", bodyText)
-	if !strings.Contains(bodyText, "game is not started") {
-		t.Fatalf("should have got an error message about the game not being started yet.")
-	}
+	t.Logf("Game starts in %d ms", startResponse.CountdownMs)
 
 	//sleep for the duration until we know the game should be started.
-	time.Sleep(time.Duration(*startResponse.CountdownMs) * time.Millisecond)
-
-	//not implementing the streaming event recovery here just at the moment, lets inspect the lobby/game to determine question/answer to use for a happy path.
-	//we will just submit the 3 correct answers in a row back to back and confirm that the game is now ended and that we got the 6 points.
+	extraSleepMs := 50 //so that goroutines have time to wake up and do stuff (i think that is what is goin on anyway)
+	time.Sleep(time.Duration(startResponse.CountdownMs+extraSleepMs) * time.Millisecond)
 	lobby, found := testGameServer.Lobbies.GetLobby(response.LobbyId)
 	if !found {
 		t.Fatalf("expected lobby %s was not found", response.LobbyId)
 	}
+	if lobby.State != Started {
+		t.Fatalf("expected lobby to have started the game, but it was in a different state: %d", lobby.State) //TODO implement some stringification for the state enum iota values ...
+	}
 
+	//lets have player 2 be the winner by submitting more correct answers than player 1
+	submitterSessionIds := []string{player2SessionId, player1SessionId, player2SessionId}
 	for i := 0; i < 3; i++ {
 		var submitAnswerResponse struct {
 			Points int `json:"points"`
 		}
 		submitAnswer := lobby.Questions[lobby.CurrentQuestionIndex].CorrectIndex
 		submitQuestionId := lobby.Questions[lobby.CurrentQuestionIndex].ID
-		resp, err = http.Post(testHttpServer.URL+"/game/answer", "application/json", strings.NewReader(fmt.Sprintf(`{"sessionId":"%s", "lobbyId":"%s", "questionId":"%s", "answer":%d}`, response.SessionId, response.LobbyId, submitQuestionId, submitAnswer)))
+		resp, err = http.Post(testHttpServer.URL+"/game/answer", "application/json", strings.NewReader(fmt.Sprintf(`{"sessionId":"%s", "lobbyId":"%s", "questionId":"%s", "answer":%d}`, submitterSessionIds[i], response.LobbyId, submitQuestionId, submitAnswer)))
 		defer resp.Body.Close()
 		err = json.NewDecoder(resp.Body).Decode(&submitAnswerResponse)
 		if err != nil {
@@ -388,16 +363,15 @@ func TestFullGameMultiPlayer(t *testing.T) {
 	if gameStatusResponse.State != Ended {
 		t.Fatalf("last question was answered and points awarded - game should be over now.")
 	}
-	if gameStatusResponse.WinningScore != 30 { //3 questions, 10 points each
-		t.Fatalf("last question was answered and points awarded - game should be over now.")
+	if gameStatusResponse.WinningScore != 20 { //player 2 should have got the two that were submitted correct.
+		t.Fatalf("unexpected winning score")
 	}
 	//confirm that there is only one winner, and that it is us.
 	if len(gameStatusResponse.Winners) != 1 {
 		t.Fatalf("wrong number of winners")
 	}
-
-	if gameStatusResponse.Winners[0] != response.SessionId {
+	//and that it is the expected winner.
+	if gameStatusResponse.Winners[0] != player2SessionId {
 		t.Fatalf("winner had an unexpected sessionid")
 	}
-
 }
