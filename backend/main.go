@@ -107,6 +107,7 @@ func setupServer() (*gin.Engine, *GameServer, error) {
 	router.POST("/game/newlobby", server.NewLobbyHandler)
 	// curl -v http://localhost:8080/game/joinlobby/740ee5bc-0acc-4ff7-9483-4f65ea652638 //using a GET request b/c the url is supposed to be share-able, and i expect ppl to be able to copy/paste it into browser address bar.
 	router.GET("/game/joinlobby/:lobbyId", server.JoinLobbyHandler)
+	router.GET("/game/status/:lobbyId", server.GameStatusHandler)
 	router.POST("/game/start", server.StartGameHandler)
 	router.POST("/game/answer", server.AnswerHandler)
 
@@ -250,6 +251,27 @@ func (gs *GameServer) EndGameHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"finalScore": session.Score})
+}
+
+func (gs *GameServer) GameStatusHandler(c *gin.Context) {
+	lobbyId := c.Param("lobbyId")
+	if lobbyId == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing lobby ID"})
+		return
+	}
+
+	// Assuming you have a method GetLobby that retrieves a lobby by its ID
+	lobby, exists := gs.Lobbies.GetLobby(lobbyId)
+	if !exists {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid lobby ID"})
+		return
+	}
+
+	// Get the game status from the lobby
+	status := lobby.GameStatus()
+
+	// Directly pass the GameStatusResult struct to c.JSON
+	c.JSON(http.StatusOK, status)
 }
 
 func (gs *GameServer) checkAnswer(questionID string, submittedAnswer int) (bool, error) {

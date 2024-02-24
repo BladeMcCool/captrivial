@@ -229,3 +229,34 @@ func (g *GameLobby) setNextQuestionOrEndGame() {
 		g.State = Ended
 	}
 }
+
+type GameStatusResult struct {
+	State        GameState
+	WinningScore int
+	Winners      []string // Session IDs of the winning player(s)
+}
+
+func (g *GameLobby) GameStatus() GameStatusResult {
+	g.mutex.Lock()
+	defer g.mutex.Unlock()
+
+	var result GameStatusResult
+	result.State = g.State
+	result.WinningScore = 0
+	scoreToSessions := make(map[int][]string) // Map scores to session IDs
+
+	for _, player := range g.Players {
+		score := player.Score
+		scoreToSessions[score] = append(scoreToSessions[score], player.SessionID)
+
+		// Update the high score if this player's score is higher
+		if score > result.WinningScore {
+			result.WinningScore = score
+		}
+	}
+
+	// Collect session IDs of all players with the high score
+	result.Winners = scoreToSessions[result.WinningScore]
+
+	return result
+}
