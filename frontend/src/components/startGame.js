@@ -1,4 +1,5 @@
-import React from 'react';
+import React, {useContext} from 'react';
+import {AppContext} from "../App";
 
 const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -9,7 +10,31 @@ const copyToClipboard = (text) => {
     });
 };
 
-const StartGame = ({ lobbySession, startGame }) => {
+const StartGame = ({ lobbySession, playerSession, setLoading, setError }) => {
+    const { API_BASE } = useContext(AppContext);
+
+    const startGame = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const res = await fetch(`${API_BASE}/game/start`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    lobbyId: lobbySession,
+                    sessionId: playerSession,
+                }),
+            });
+            const data = await res.json();
+            console.log("got data from start game:", data)
+        } catch (err) {
+            setError("Failed to start game.");
+        }
+        setLoading(false);
+    };
+
     return (
         <div>
             {/* Section for starting a game within an existing lobby */}

@@ -1,6 +1,20 @@
 import React from 'react';
 
-const GameOver = ({ winnerMessage, score, winningScore, resetGame }) => {
+const GameOver = ({ winnerMessage, score, winningScore, setLoading, setError, setPlayerSession, setLobbySession, hasJoinedLobby, setQuestions, setScore, setGameStarted, setGameEnded }) => {
+    const resetGame = async () => {
+        setLoading(true);
+        // change something to go back to the "new lobby screen"
+        setError(null);
+        setPlayerSession(null);
+        setLobbySession(null);
+        hasJoinedLobby.current = false
+        setQuestions([]);
+        setScore(0);
+        setGameStarted(false)
+        setGameEnded(false)
+        setLoading(false);
+    };
+
     return (
         <div>
             <div>

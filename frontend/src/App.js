@@ -1,4 +1,4 @@
-import React, {useEffect, useRef, useState} from "react";
+import React, {createContext, useEffect, useRef, useState} from "react";
 import "./App.css";
 import { useParams } from "react-router-dom"; // Import useParams hook
 import LobbyCreation from './components/lobbyCreation';
@@ -9,6 +9,7 @@ import Countdown from "./components/countdown";
 
 // Use REACT_APP_BACKEND_URL or http://localhost:8080 as the API_BASE
 const API_BASE = process.env.REACT_APP_BACKEND_URL || "http://localhost:8080";
+export const AppContext = createContext();
 
 function App() {
   const [lobbySession, setLobbySession] = useState(null);
@@ -131,105 +132,105 @@ function App() {
     return () => clearInterval(intervalId); // Cleanup interval on unmount or when countdownRemainingMs becomes 0 or less
   }, [countdownRunning]);
 
-  const createNewLobby = async () => {
-    try {
-      try {
-        const res = await fetch(`${API_BASE}/game/newlobby`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            questionCount: questionCount,
-            countdownMs: countdownSeconds * 1000, //just using seconds for the ui
-          }),
-        });
+  // const createNewLobby = async () => {
+  //   try {
+  //     try {
+  //       const res = await fetch(`${API_BASE}/game/newlobby`, {
+  //         method: "POST",
+  //         headers: {
+  //           "Content-Type": "application/json",
+  //         },
+  //         body: JSON.stringify({
+  //           questionCount: questionCount,
+  //           countdownMs: countdownSeconds * 1000, //just using seconds for the ui
+  //         }),
+  //       });
+  //
+  //       const data = await res.json();
+  //       if (res.ok) {
+  //         console.log("game lobby:", data)
+  //         // Assuming the response includes the lobbySession or playerSession identifier
+  //         // setLobbySession(data.lobbyId); // Update this line based on your actual response structure
+  //         setPlayerSession(data.sessionId);
+  //         setLobbySession(data.lobbyId);
+  //         // setGameParams(data);
+  //         // Additional logic to handle successful lobby creation
+  //       } else {
+  //         throw new Error(data.error || "Failed to create new lobby");
+  //       }
+  //     } catch (err) {
+  //       setError(err.message);
+  //     }
+  //   } catch (err) {
+  //     setError("Failed to create lobby");
+  //   }
+  //   setLoading(false);
+  // };
 
-        const data = await res.json();
-        if (res.ok) {
-          console.log("game lobby:", data)
-          // Assuming the response includes the lobbySession or playerSession identifier
-          // setLobbySession(data.lobbyId); // Update this line based on your actual response structure
-          setPlayerSession(data.sessionId);
-          setLobbySession(data.lobbyId);
-          // setGameParams(data);
-          // Additional logic to handle successful lobby creation
-        } else {
-          throw new Error(data.error || "Failed to create new lobby");
-        }
-      } catch (err) {
-        setError(err.message);
-      }
-    } catch (err) {
-      setError("Failed to create lobby");
-    }
-    setLoading(false);
-  };
+  // const startGame = async () => {
+  //   setLoading(true);
+  //   setError(null);
+  //   try {
+  //     const res = await fetch(`${API_BASE}/game/start`, {
+  //       method: "POST",
+  //       headers: {
+  //         "Content-Type": "application/json",
+  //       },
+  //       body: JSON.stringify({
+  //         lobbyId: lobbySession,
+  //         sessionId: playerSession,
+  //       }),
+  //     });
+  //     const data = await res.json();
+  //     console.log("got data from start game:", data)
+  //     // setPlayerSession(data.sessionId);
+  //     // fetchQuestions();
+  //   } catch (err) {
+  //     setError("Failed to start game.");
+  //   }
+  //   setLoading(false);
+  // };
 
-  const startGame = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`${API_BASE}/game/start`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          lobbyId: lobbySession,
-          sessionId: playerSession,
-        }),
-      });
-      const data = await res.json();
-      console.log("got data from start game:", data)
-      // setPlayerSession(data.sessionId);
-      // fetchQuestions();
-    } catch (err) {
-      setError("Failed to start game.");
-    }
-    setLoading(false);
-  };
+  // const fetchQuestions = async () => {
+  //   setLoading(true);
+  //   try {
+  //     const res = await fetch(`${API_BASE}/questions`);
+  //     const data = await res.json();
+  //     setQuestions(data);
+  //   } catch (err) {
+  //     setError("Failed to fetch questions.");
+  //   }
+  //   setLoading(false);
+  // };
 
-  const fetchQuestions = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_BASE}/questions`);
-      const data = await res.json();
-      setQuestions(data);
-    } catch (err) {
-      setError("Failed to fetch questions.");
-    }
-    setLoading(false);
-  };
-
-  const submitAnswer = async (index) => {
-    // We are submitting the index
-    setLoading(true);
-    const currentQuestion = questions[questions.length-1];
-    console.log("believes current question id is: ", currentQuestion.id)
-    try {
-      const res = await fetch(`${API_BASE}/game/answer`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          lobbyId: lobbySession,
-          sessionId: playerSession,
-          questionId: currentQuestion.id, // field name is "id", not "questionId"
-          answer: index,
-        }),
-      });
-      const data = await res.json();
-      if (data.points) {
-        //TODO points will tell us if we got the question right or not ... do something fancy if so
-        setScore(data.score); // Update score from server's response
-      }
-    } catch (err) {
-      setError("Failed to submit answer.");
-    }
-    setLoading(false);
-  };
+  // const submitAnswer = async (index) => {
+  //   // We are submitting the index
+  //   setLoading(true);
+  //   const currentQuestion = questions[questions.length-1];
+  //   console.log("believes current question id is: ", currentQuestion.id)
+  //   try {
+  //     const res = await fetch(`${API_BASE}/game/answer`, {
+  //       method: "POST",
+  //       headers: {
+  //         "Content-Type": "application/json",
+  //       },
+  //       body: JSON.stringify({
+  //         lobbyId: lobbySession,
+  //         sessionId: playerSession,
+  //         questionId: currentQuestion.id, // field name is "id", not "questionId"
+  //         answer: index,
+  //       }),
+  //     });
+  //     const data = await res.json();
+  //     if (data.points) {
+  //       //TODO points will tell us if we got the question right or not ... do something fancy if so
+  //       setScore(data.score); // Update score from server's response
+  //     }
+  //   } catch (err) {
+  //     setError("Failed to submit answer.");
+  //   }
+  //   setLoading(false);
+  // };
 
   const endGame = async () => {
     setLoading(true);
@@ -278,24 +279,25 @@ function App() {
     setLoading(false);
   };
 
-  const resetGame = async () => {
-    setLoading(true);
-    // change something to go back to the "new lobby screen"
-    setError(null);
-    setPlayerSession(null);
-    setLobbySession(null);
-    hasJoinedLobby.current = false
-    setQuestions([]);
-    setScore(0);
-    setGameStarted(false)
-    setGameEnded(false)
-    setLoading(false);
-  };
+  // const resetGame = async () => {
+  //   setLoading(true);
+  //   // change something to go back to the "new lobby screen"
+  //   setError(null);
+  //   setPlayerSession(null);
+  //   setLobbySession(null);
+  //   hasJoinedLobby.current = false
+  //   setQuestions([]);
+  //   setScore(0);
+  //   setGameStarted(false)
+  //   setGameEnded(false)
+  //   setLoading(false);
+  // };
 
   if (error) return <div className="error">Error: {error}</div>;
   if (loading) return <div className="loading">Loading...</div>;
 
   return (
+      <AppContext.Provider value={{ API_BASE }}>
       <div className="App">
         {!lobbySession ? (
             <LobbyCreation
@@ -303,7 +305,11 @@ function App() {
                 setQuestionCount={setQuestionCount}
                 countdownSeconds={countdownSeconds}
                 setCountdownSeconds={setCountdownSeconds}
-                createNewLobby={createNewLobby}
+                setPlayerSession={setPlayerSession}
+                setLobbySession={setLobbySession}
+                setError={setError}
+                setLoading={setLoading}
+                // createNewLobby={createNewLobby}
             />
         ) : countdownRunning ? (
             <Countdown
@@ -312,23 +318,39 @@ function App() {
         ) : !gameStarted ? (
             <StartGame
                 lobbySession={lobbySession}
-                startGame={startGame}
+                playerSession={playerSession}
+                setLoading={setLoading}
+                setError={setError}
             />
         ) : gameEnded ? (
             <GameOver
                 winnerMessage={winnerMessage}
                 score={score}
                 winningScore={winningScore}
-                resetGame={resetGame}
+                setLoading={setLoading}
+                setError={setError}
+                setPlayerSession={setPlayerSession}
+                setLobbySession={setLobbySession}
+                hasJoinedLobby={hasJoinedLobby}
+                setQuestions={setQuestions}
+                setScore={setScore}
+                setGameStarted={setGameStarted}
+                setGameEnded={setGameEnded}
+                // resetGame={resetGame}
             />
         ) : (
             <PickAnswer
                 questions={questions}
                 score={score}
-                submitAnswer={submitAnswer}
+                lobbySession={lobbySession}
+                playerSession={playerSession}
+                setScore={setScore}
+                setError={setError}
+                setLoading={setLoading}
             />
         )}
       </div>
+      </AppContext.Provider>
   );
 }
 
