@@ -6,6 +6,7 @@ import StartGame from './components/startGame';
 import GameOver from './components/gameOver';
 import PickAnswer from "./components/pickAnswer";
 import Countdown from "./components/countdown";
+import useEndGame from './hooks/useEndGame'
 
 // Use REACT_APP_BACKEND_URL or http://localhost:8080 as the API_BASE
 const API_BASE = process.env.REACT_APP_BACKEND_URL || "http://localhost:8080";
@@ -26,6 +27,7 @@ function App() {
   const [countdownSeconds, setCountdownSeconds] = useState(5);
   const [countdownRunning, setCountdownRunning] = useState(false);
   const [countdownRemainingMs, setCountdownRemainingMs] = useState(0);
+  const endGame = useEndGame();
 
   // Effect for WebSocket setup
   useEffect(() => {
@@ -37,7 +39,7 @@ function App() {
       console.log('WebSocket Connected');
     };
 
-    websocket.onmessage = (event) => {
+    websocket.onmessage = async (event) => {
       // setServerMessage(event.data);
       const data = JSON.parse(event.data);
       console.log("got message from server", data)
@@ -54,7 +56,15 @@ function App() {
         setCountdownRunning(true)
         setCountdownRemainingMs(data.countdownMs)
       } else if (data.gameOver) {
-        endGame()
+        // endGame()
+        try {
+          await endGame(API_BASE, lobbySession, playerSession, setGameEnded, setWinnerMessage, setWinningScore, setError, setLoading)
+          // Handle success
+        } catch (error) {
+          // Handle errors
+          console.error("Failed to end the game:", error);
+        }
+
         // alert(`Game over! Winner: ${data.winner}, Score: ${data.score}`);
         // Reset game state here if needed
       } else if (data.content) {
@@ -131,167 +141,6 @@ function App() {
 
     return () => clearInterval(intervalId); // Cleanup interval on unmount or when countdownRemainingMs becomes 0 or less
   }, [countdownRunning]);
-
-  // const createNewLobby = async () => {
-  //   try {
-  //     try {
-  //       const res = await fetch(`${API_BASE}/game/newlobby`, {
-  //         method: "POST",
-  //         headers: {
-  //           "Content-Type": "application/json",
-  //         },
-  //         body: JSON.stringify({
-  //           questionCount: questionCount,
-  //           countdownMs: countdownSeconds * 1000, //just using seconds for the ui
-  //         }),
-  //       });
-  //
-  //       const data = await res.json();
-  //       if (res.ok) {
-  //         console.log("game lobby:", data)
-  //         // Assuming the response includes the lobbySession or playerSession identifier
-  //         // setLobbySession(data.lobbyId); // Update this line based on your actual response structure
-  //         setPlayerSession(data.sessionId);
-  //         setLobbySession(data.lobbyId);
-  //         // setGameParams(data);
-  //         // Additional logic to handle successful lobby creation
-  //       } else {
-  //         throw new Error(data.error || "Failed to create new lobby");
-  //       }
-  //     } catch (err) {
-  //       setError(err.message);
-  //     }
-  //   } catch (err) {
-  //     setError("Failed to create lobby");
-  //   }
-  //   setLoading(false);
-  // };
-
-  // const startGame = async () => {
-  //   setLoading(true);
-  //   setError(null);
-  //   try {
-  //     const res = await fetch(`${API_BASE}/game/start`, {
-  //       method: "POST",
-  //       headers: {
-  //         "Content-Type": "application/json",
-  //       },
-  //       body: JSON.stringify({
-  //         lobbyId: lobbySession,
-  //         sessionId: playerSession,
-  //       }),
-  //     });
-  //     const data = await res.json();
-  //     console.log("got data from start game:", data)
-  //     // setPlayerSession(data.sessionId);
-  //     // fetchQuestions();
-  //   } catch (err) {
-  //     setError("Failed to start game.");
-  //   }
-  //   setLoading(false);
-  // };
-
-  // const fetchQuestions = async () => {
-  //   setLoading(true);
-  //   try {
-  //     const res = await fetch(`${API_BASE}/questions`);
-  //     const data = await res.json();
-  //     setQuestions(data);
-  //   } catch (err) {
-  //     setError("Failed to fetch questions.");
-  //   }
-  //   setLoading(false);
-  // };
-
-  // const submitAnswer = async (index) => {
-  //   // We are submitting the index
-  //   setLoading(true);
-  //   const currentQuestion = questions[questions.length-1];
-  //   console.log("believes current question id is: ", currentQuestion.id)
-  //   try {
-  //     const res = await fetch(`${API_BASE}/game/answer`, {
-  //       method: "POST",
-  //       headers: {
-  //         "Content-Type": "application/json",
-  //       },
-  //       body: JSON.stringify({
-  //         lobbyId: lobbySession,
-  //         sessionId: playerSession,
-  //         questionId: currentQuestion.id, // field name is "id", not "questionId"
-  //         answer: index,
-  //       }),
-  //     });
-  //     const data = await res.json();
-  //     if (data.points) {
-  //       //TODO points will tell us if we got the question right or not ... do something fancy if so
-  //       setScore(data.score); // Update score from server's response
-  //     }
-  //   } catch (err) {
-  //     setError("Failed to submit answer.");
-  //   }
-  //   setLoading(false);
-  // };
-
-  const endGame = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_BASE}/game/status/${lobbySession}`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-      const data = await res.json();
-      // alert(`Game over! Your score: ${data.finalScore}`); // Use the finalScore from the response
-      console.log("game status after end: ", data)
-
-      // Check if the current user is a winner
-      const isWinner = data.winners.includes(playerSession);
-      const you = "You"
-
-      // Replace the current user's session ID with "you" and reorder to put "you" first if present
-      const winnersFormatted = data.winners.map(winner => winner === playerSession ? you : winner);
-      if (isWinner && winnersFormatted.length > 1) {
-        const index = winnersFormatted.indexOf(you);
-        winnersFormatted.splice(index, 1); // Remove "you"
-        winnersFormatted.unshift(you); // Add "you" to the beginning
-      }
-
-      const winnerMessage = isWinner ?
-          `Congratulations, ${winnersFormatted.join(" and ")} won the game!` :
-          `${winnersFormatted.join(" and ")} won the game!`;
-
-      setWinnerMessage(winnerMessage)
-      // setWinners(data.winners);
-      setWinningScore(data.winningScore);
-
-      // TODO do all this stuff before starting a lobby, not here.
-      // setPlayerSession(null);
-      // setLobbySession(null);
-      // setQuestions([]);
-      // setScore(0);
-
-      // setCurrentQuestionIndex(0);
-      setGameEnded(true)
-    } catch (err) {
-      setError("Failed to end game.");
-    }
-    setLoading(false);
-  };
-
-  // const resetGame = async () => {
-  //   setLoading(true);
-  //   // change something to go back to the "new lobby screen"
-  //   setError(null);
-  //   setPlayerSession(null);
-  //   setLobbySession(null);
-  //   hasJoinedLobby.current = false
-  //   setQuestions([]);
-  //   setScore(0);
-  //   setGameStarted(false)
-  //   setGameEnded(false)
-  //   setLoading(false);
-  // };
 
   if (error) return <div className="error">Error: {error}</div>;
   if (loading) return <div className="loading">Loading...</div>;
