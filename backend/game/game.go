@@ -1,71 +1,17 @@
-package main
+package game
 
 import (
 	"errors"
-	"github.com/google/uuid"
 	"log"
 	"math/rand"
 	"sync"
 	"time"
 )
 
-// TODO consider about cleanup of lobbies, perhaps when a game ends something can clean it out.
-type Lobbies struct {
-	mutex   sync.Mutex
-	lobbies map[string]*GameLobby
-}
-
-// GetLobby attempts to find and return a lobby by its ID.
-// Returns a pointer to the GameLobby and a boolean indicating whether the lobby was found.
-func (l *Lobbies) GetLobby(lobbyId string) (*GameLobby, bool) {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
-
-	lobby, found := l.lobbies[lobbyId]
-	return lobby, found
-}
-
-func (l *Lobbies) AddLobby(questionCount, countdown int, player *Player) string {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
-
-	// Generate a unique ID for the new lobby
-	newLobbyID := uuid.New().String()
-
-	// Create a new GameLobby instance
-	newLobby := NewGameLobby(questionCount, countdown)
-
-	// If a player instance is provided, add the player to the new lobby
-	if player != nil {
-		newLobby.AddPlayer(player.SessionID)
-	}
-
-	// Add the new lobby to the lobbies map
-	l.lobbies[newLobbyID] = newLobby
-	return newLobbyID
-}
-
-// Message struct to encapsulate game messages
-type Message interface{}
-
-type Player struct {
-	SessionID         string
-	Score             int
-	QuestionsAnswered []string     //to hold the ids of the questions that the player answered, in case 'no player answers it correctly first', so we have some way to track it.
-	MessageChannel    chan Message // Channel for sending messages to the player
-}
-
-func (p *Player) SendMessage(message Message) {
-	p.MessageChannel <- message
-}
-
-func (p *Player) HasAnsweredQuestion(questionID string) bool {
-	for _, qId := range p.QuestionsAnswered {
-		if qId == questionID {
-			return true
-		}
-	}
-	return false
+type GameStatusResult struct {
+	State        GameState `json:"state"`
+	WinningScore int       `json:"winningScore"`
+	Winners      []string  `json:"winners"` // Session IDs of the winning player(s)
 }
 
 type GameState int
@@ -285,12 +231,6 @@ func (g *GameLobby) setNextQuestionOrEndGame() {
 		g.State = Ended
 		g.SendGameOver()
 	}
-}
-
-type GameStatusResult struct {
-	State        GameState `json:"state"`
-	WinningScore int       `json:"winningScore"`
-	Winners      []string  `json:"winners"` // Session IDs of the winning player(s)
 }
 
 func (g *GameLobby) GameStatus() GameStatusResult {

@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/ProlificLabs/captrivia/server"
 	"github.com/google/uuid"
 	"io/ioutil"
 	"log"
@@ -18,7 +19,7 @@ import (
 
 var testRouter *gin.Engine
 var testHttpServer *httptest.Server
-var testGameServer *GameServer
+var testGameServer *server.GameServer
 
 // TestMain is called before any test runs.
 // It allows us to set up things and also clean up after all tests have been run.

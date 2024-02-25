@@ -37,13 +37,21 @@ i need golang code to test and implement a state machine for a multiplayer onlin
 please note that in the above description, the "current question" is just the currently chosen question index from the randomized list of questions which the lobby set itself up with. when the game is started this will be 0 and it will increment with each correct answer until all the questions are answered and the game is set into a 'ended' status.
 please elaborate on the mechanism we can use to satisfy the notification of the connected clients for item 5.
 please enumerate the requirements listed above and your solution for each step, enhancing proposed structs and tests as you go.
-
+---------------------
+windows cmd curl: (debug note)
+curl -v -H "Content-Type: application/json" -d "{\"questionCount\":3,\"countdownMs\":5000}" http://localhost:8080/game/newlobby
+curl -v http://localhost:8080/game/joinlobby/740ee5bc-0acc-4ff7-9483-4f65ea652638 //using a GET request b/c the url is supposed to be share-able, and i expect ppl to be able to copy/paste it into browser address bar.
 -------------------
 additonal considerations:
+more visual notification that you answered wrong (and a 'can't answer twice' or something notice for trying again after getting it wrong!)
+    perhaps after answering wrong, the question should swap out and just say a big red x above the score, until the next question comes in (i like it)
 ready check before start can be engaged? all players would have to ready up
-points per question? r/n we just give 2 points but maybe harder questions could have more points
+points per question? r/n we just give 10 points but maybe harder questions could have more points
 game max players? r/n the number of players that can join a lobby is unrestricted
 cleanup of old lobbies? r/n they'll just pile up in memory. cleanup channel perhaps could receive message about game done-ness and then remove it?
 perhaps questions should time out because 1 player could get it wrong and the other player could walk away from the keyboard. so player 1 doesnt get to win? boo.
+scaling?
+    should we ever consider a multi-server infrastructure for this, if we wish any server to handle any game interaction there will have to be state saved in a database of some kind (redis, postgres, etc)
+    or take steps in load balancer to make sure that players of the same game end up same server (shard by lobby id perhaps).
 
 

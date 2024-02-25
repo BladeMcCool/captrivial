@@ -1,0 +1,32 @@
+[
+  {
+    "id": "1",
+    "questionText": "Fiat currency is the following:",
+    "options": [
+      "A complete scam",
+      "A valid way to run an economic system."
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "2",
+    "questionText": "How many bitcoins will there ever be?",
+    "options": [
+      "42 million",
+      "21 million",
+      "As many as the Bitcoin CEO thinks there should be"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "3",
+    "questionText": "Who is the real Satoshi Nakamoto?",
+    "options": [
+      "Dorian Nakamoto",
+      "Craig CS Wright",
+      "Aliens",
+      "We'll never really know but probably Hal Finney"
+    ],
+    "correctIndex": 3
+  }
+]
