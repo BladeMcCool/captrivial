@@ -44,6 +44,6 @@ ready check before start can be engaged? all players would have to ready up
 points per question? r/n we just give 2 points but maybe harder questions could have more points
 game max players? r/n the number of players that can join a lobby is unrestricted
 cleanup of old lobbies? r/n they'll just pile up in memory. cleanup channel perhaps could receive message about game done-ness and then remove it?
-
+perhaps questions should time out because 1 player could get it wrong and the other player could walk away from the keyboard. so player 1 doesnt get to win? boo.
 
 

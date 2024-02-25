@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"github.com/google/uuid"
+	"log"
 	"math/rand"
 	"sync"
 	"time"
@@ -44,10 +45,18 @@ func (l *Lobbies) AddLobby(questionCount, countdown int, player *Player) string 
 	return newLobbyID
 }
 
+// Message struct to encapsulate game messages
+type Message interface{}
+
 type Player struct {
 	SessionID         string
 	Score             int
-	QuestionsAnswered []string //to hold the ids of the questions that the player answered, in case 'no player answers it correctly first', so we have some way to track it.
+	QuestionsAnswered []string     //to hold the ids of the questions that the player answered, in case 'no player answers it correctly first', so we have some way to track it.
+	MessageChannel    chan Message // Channel for sending messages to the player
+}
+
+func (p *Player) SendMessage(message Message) {
+	p.MessageChannel <- message
 }
 
 func (p *Player) HasAnsweredQuestion(questionID string) bool {
@@ -90,6 +99,15 @@ func NewGameLobby(questionCount, countdown int) *GameLobby {
 	}
 }
 
+func (g *GameLobby) GetPlayer(sessionID string) (*Player, error) {
+	for _, p := range g.Players {
+		if p.SessionID == sessionID {
+			return p, nil
+		}
+	}
+	return nil, errors.New("player not found")
+}
+
 func (g *GameLobby) setShuffledQuestionsFromPool(questions []*Question) {
 	//rand.Seed(time.Now().UnixNano()) //apparently the need to do this is gone as of golang 1.20
 	shuffled := make([]*Question, len(questions))
@@ -122,7 +140,13 @@ func (g *GameLobby) AddPlayer(sessionID string) error {
 		}
 	}
 
-	g.Players = append(g.Players, &Player{SessionID: sessionID, Score: 0, QuestionsAnswered: []string{}})
+	g.Players = append(g.Players, &Player{
+		SessionID:         sessionID,
+		Score:             0,
+		QuestionsAnswered: []string{},
+		MessageChannel:    make(chan Message, g.QuestionCount+2), // Plus 2 for start and finish messages
+	})
+	// TODO dont forget to close(player.MessageChannel) at some point (how about when the game is done?)
 	return nil
 }
 
@@ -138,15 +162,45 @@ func (g *GameLobby) StartGame(questionPool []*Question) error {
 	g.setShuffledQuestionsFromPool(questionPool)
 
 	go func() {
+		// Notification mechanism to connected clients (elaborated below)
+		for _, player := range g.Players {
+			player.SendMessage(map[string]interface{}{
+				"countdownMs": 5000,
+			})
+		}
 		time.Sleep(time.Duration(g.Countdown) * time.Millisecond)
 		g.mutex.Lock()
 		g.State = Started
 		g.mutex.Unlock()
 
-		// Notification mechanism to connected clients (elaborated below)
 		// and how exactly is the question getting in front of the player now?
+		g.SendCurrentQuestion()
 	}()
 	return nil
+}
+
+func (g *GameLobby) SendCurrentQuestion() {
+	question := g.Questions[g.CurrentQuestionIndex]
+	log.Printf("sending next question to all players ...., question id is: %s", question.ID)
+	questionForPlayer := map[string]interface{}{ //suppress the correct answer.
+		"id":           question.ID,
+		"options":      question.Options,
+		"questionText": question.QuestionText,
+	}
+	for _, player := range g.Players {
+		player.SendMessage(map[string]interface{}{
+			"question": questionForPlayer,
+		})
+	}
+}
+
+func (g *GameLobby) SendGameOver() {
+	for _, player := range g.Players {
+		player.SendMessage(map[string]bool{
+			"gameOver": true,
+		})
+	}
+
 }
 
 func (g *GameLobby) SubmitAnswer(playerSessionID string, questionID string, answerIndex int) (error, int) {
@@ -175,9 +229,10 @@ func (g *GameLobby) SubmitAnswer(playerSessionID string, questionID string, answ
 	}
 
 	if player == nil {
+		log.Printf("pnf!")
 		return errors.New("player not found"), 0
 	}
-
+	log.Printf("here1")
 	// If this player already recorded an answer for this question, then reject this answer.
 	if player.HasAnsweredQuestion(questionID) {
 		return errors.New("player already answered this question"), 0
@@ -223,17 +278,19 @@ func (g *GameLobby) setNextQuestionOrEndGame() {
 	// Increment the current question index or end the game if all questions are answered
 	if g.CurrentQuestionIndex < len(g.Questions)-1 {
 		g.CurrentQuestionIndex++
+		g.SendCurrentQuestion()
 	} else {
 		// This was the last question, so end the game
 		g.CurrentQuestionIndex = 0
 		g.State = Ended
+		g.SendGameOver()
 	}
 }
 
 type GameStatusResult struct {
-	State        GameState
-	WinningScore int
-	Winners      []string // Session IDs of the winning player(s)
+	State        GameState `json:"state"`
+	WinningScore int       `json:"winningScore"`
+	Winners      []string  `json:"winners"` // Session IDs of the winning player(s)
 }
 
 func (g *GameLobby) GameStatus() GameStatusResult {

@@ -228,21 +228,32 @@ func (gs *GameServer) AnswerHandler(c *gin.Context) {
 
 	lobby, found := gs.Lobbies.GetLobby(submittedAnswer.LobbyId)
 	if !found {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to find lobby: " + submittedAnswer.LobbyId})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to find lobby: " + submittedAnswer.LobbyId})
 		return
 	}
 
 	err, points := lobby.SubmitAnswer(submittedAnswer.SessionID, submittedAnswer.QuestionID, submittedAnswer.Answer)
 	//the errors here can all be treated as non-errors, the important part is whether any points was awarded. we could maybe get more info and track a score but the server is going to keep track and push updates to the client so, not worrying about it here.
 	if err != nil {
+		log.Printf("sumbissionError: %s", err.Error())
+		c.JSON(http.StatusOK, gin.H{
+			"submissionError": err.Error(),
+		})
+		return
+	}
+	player, err := lobby.GetPlayer(submittedAnswer.SessionID)
+	if err != nil {
+		log.Printf("sumbissionError %s", err.Error())
 		c.JSON(http.StatusOK, gin.H{
 			"submissionError": err.Error(),
 		})
 		return
 	}
 
+	log.Printf("respond with points %d", points)
 	c.JSON(http.StatusOK, gin.H{
 		"points": points,
+		"score":  player.Score,
 	})
 
 }
@@ -348,14 +359,25 @@ func (gs *GameServer) WsHandler(c *gin.Context) {
 		return
 	}
 
-	//// Create a ticker that ticks every second
-	ticker := time.NewTicker(100 * time.Millisecond)
+	lobby, found := gs.Lobbies.GetLobby(lobbyId)
+	if !found {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Lobby doesnt exist"})
+		return
+	}
+	player, _ := lobby.GetPlayer(sessionId) //TODO decide and make consistent the return style of these getters. idk probably dont actually need to send and error
+	if player == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Player not found"})
+		return
+	}
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to establish WebSocket connection"})
 		return
 	}
+
+	//just want a flow of events for some debugging
+	ticker := time.NewTicker(time.Duration(1) * time.Second)
 	cleanup := func() {
 		log.Println("close the websocket conn")
 		conn.Close()
@@ -365,40 +387,45 @@ func (gs *GameServer) WsHandler(c *gin.Context) {
 	}
 	defer cleanup()
 
-	log.Printf("spamming to player session %s in lobby %s", sessionId, lobbyId)
 	spamcount := 0
+
 	for {
 		select {
+		case message := <-player.MessageChannel:
+			log.Printf("sending a message like this: %+v", message)
+			if err := conn.WriteJSON(message); err != nil {
+				// Handle error: failed to send message
+				log.Println("Failed to send", message)
+				log.Println("Write error:", err)
+				return
+			}
 		case <-ticker.C:
 			spamcount++
 			// Send a message every tick
-			messageData := struct {
-				MessageType string `json:"messageType"`
-				Content     string `json:"content"`
-				Count       int    `json:"count"`
-			}{
-				MessageType: "Spam",
-				Content:     fmt.Sprintf("Spam message from server"),
-				Count:       spamcount,
-			}
-
-			// Marshal the struct to JSON
-			messageJSON, err := json.Marshal(messageData)
-			if err != nil {
-				log.Println("JSON marshal error:", err)
-				return // Exit the loop and end the connection on error
-			}
-
-			// Send the JSON message
-			if err := conn.WriteMessage(websocket.TextMessage, messageJSON); err != nil {
-				log.Println("Write error:", err)
-				return // Exit the loop and end the connection on error
-			}
-			//message := fmt.Sprintf("Spam message %d from server", spamcount)
-			//if err := conn.WriteMessage(websocket.TextMessage, []byte(message)); err != nil {
+			//messageData := struct {
+			//	MessageType string `json:"messageType"`
+			//	Content     string `json:"content"`
+			//	Count       int    `json:"count"`
+			//}{
+			//	MessageType: "Spam",
+			//	Content:     fmt.Sprintf("Spam message from server"),
+			//	Count:       spamcount,
+			//}
+			//
+			//// Marshal the struct to JSON
+			//messageJSON, err := json.Marshal(messageData)
+			//if err != nil {
+			//	log.Println("JSON marshal error:", err)
+			//	return // Exit the loop and end the connection on error
+			//}
+			//
+			//// Send the JSON message
+			//if err := conn.WriteMessage(websocket.TextMessage, messageJSON); err != nil {
 			//	log.Println("Write error:", err)
 			//	return // Exit the loop and end the connection on error
 			//}
 		}
+
 	}
+
 }

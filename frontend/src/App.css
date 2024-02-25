@@ -80,4 +80,11 @@ div.error {
   margin-top: 50px;
 }
 
+.lobby-link-input {
+  width: 100%;
+  padding: 8px;
+  margin-top: 10px;
+  cursor: pointer; /* Optional: Change cursor to indicate it's clickable */
+}
+
 /* Additional elements like modals, alerts, etc. could be styled here. */
