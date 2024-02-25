@@ -165,7 +165,7 @@ func (g *GameLobby) StartGame(questionPool []*Question) error {
 		// Notification mechanism to connected clients (elaborated below)
 		for _, player := range g.Players {
 			player.SendMessage(map[string]interface{}{
-				"countdownMs": 5000,
+				"countdownMs": g.Countdown,
 			})
 		}
 		time.Sleep(time.Duration(g.Countdown) * time.Millisecond)

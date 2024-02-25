@@ -5,15 +5,16 @@ import AppWrapper from './AppWrapper';
 import reportWebVitals from './reportWebVitals';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
-// root.render(
-//   <React.StrictMode>
-//     <AppWrapper />
-//   </React.StrictMode>
-// );
-
 root.render(
+  <React.StrictMode>
     <AppWrapper />
+  </React.StrictMode>
 );
+
+//trying without StrictMode to confirm double execution of useEffect was because of it (it was!)
+// root.render(
+//     <AppWrapper />
+// );
 
 // If you want to start measuring performance in your app, pass a function
 // to log results (for example: reportWebVitals(console.log))

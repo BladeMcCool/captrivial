@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, {useEffect, useRef, useState} from "react";
 import "./App.css";
 import { useParams } from "react-router-dom"; // Import useParams hook
 
@@ -7,8 +7,8 @@ const API_BASE = process.env.REACT_APP_BACKEND_URL || "http://localhost:8080";
 
 function App() {
   // TODO make these inputs on the screen, with a minimum countdown MS like 3000
-  const countDownMs = 1000
-  const questionCount = 2
+  // const countDownMs = 1000
+  // const questionCount = 2
 
   const [lobbySession, setLobbySession] = useState(null);
   const [playerSession, setPlayerSession] = useState(null);
@@ -22,6 +22,11 @@ function App() {
   const [winningScore, setWinningScore] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [questionCount, setQuestionCount] = useState(3);
+  const [countdownSeconds, setCountdownSeconds] = useState(5);
+  const [countdownRunning, setCountdownRunning] = useState(false);
+  const [countdownRemainingMs, setCountdownRemainingMs] = useState(0);
+
   // const [ws, setWs] = useState(null); // Store WebSocket connection
   // const [serverMessage, setServerMessage] = useState('');
 
@@ -43,15 +48,20 @@ function App() {
       if (data.question) {
         console.log("received question")
         setGameStarted(true)
+        setCountdownRunning(false)
+        setCountdownRemainingMs(0)
         setQuestions(prev => [...prev, data.question]);
         // setCurrentQuestionIndex(prevIndex => prevIndex + 1); // Move to the new question
       } else if (data.countdownMs) {
         console.log("maybe show some kind of ticker for this many ms:", data.countdownMs)
+        setCountdownRunning(true)
+        setCountdownRemainingMs(data.countdownMs)
       } else if (data.gameOver) {
         endGame()
         // alert(`Game over! Winner: ${data.winner}, Score: ${data.score}`);
         // Reset game state here if needed
       } else if (data.content) {
+        //websocket debugging
         console.log("spam data", data)
         // Reset game state here if needed
       }
@@ -69,13 +79,15 @@ function App() {
   // Use useParams hook to extract lobby UUID from the URL
   let { lobbyUuid } = useParams();
   // console.log("hrm")
+  const hasJoinedLobby = useRef(false);
 
   // Effect to set lobbySession based on URL lobbyUuid
   useEffect(() => {
     if (lobbyUuid) {
       setLobbySession(lobbyUuid);
       console.log("there is a lobbyUuid and it is", lobbyUuid)
-      if (!playerSession) {
+      if (!hasJoinedLobby.current) { //react strict mode was causing this to double-join lobbies and since server sets the session id we were having 2 session ids join the game, and the '3rd player walks away from the computer' issue arose. trying to use state to track the fact we got a session was not registering fast enough so this is an alternate method for immediate 'state' (not actual react state i guess?) adjustment.
+        hasJoinedLobby.current = true
         // Function to join the lobby if we haven't got a playerSession yet
         const joinLobby = async () => {
           setLoading(true);
@@ -108,6 +120,21 @@ function App() {
     }
   }, [lobbyUuid]);
 
+  useEffect(() => {
+    let intervalId;
+    if (countdownRunning && countdownRemainingMs > 0) {
+      //TODO better time calc logic based on taking the actual time the game was started at, and showing how much time is left between now and game start.
+      //but this should be good enough for a first draft.
+      intervalId = setInterval(() => {
+        setCountdownRemainingMs((time) => time - 100);
+      }, 100);
+    } else if (countdownRemainingMs <= 0) {
+      setCountdownRunning(false);
+    }
+
+    return () => clearInterval(intervalId); // Cleanup interval on unmount or when countdownRemainingMs becomes 0 or less
+  }, [countdownRunning]);
+
   const createNewLobby = async () => {
     try {
       try {
@@ -118,9 +145,10 @@ function App() {
           },
           body: JSON.stringify({
             questionCount: questionCount,
-            countdownMs: countDownMs,
+            countdownMs: countdownSeconds * 1000, //just using seconds for the ui
           }),
         });
+
         const data = await res.json();
         if (res.ok) {
           console.log("game lobby:", data)
@@ -272,12 +300,12 @@ function App() {
     setError(null);
     setPlayerSession(null);
     setLobbySession(null);
+    hasJoinedLobby.current = false
     setQuestions([]);
     setScore(0);
     setGameStarted(false)
     setGameEnded(false)
     setLoading(false);
-
   };
 
   if (error) return <div className="error">Error: {error}</div>;
@@ -323,13 +351,46 @@ function App() {
   return (
       <div className="App">
         {!lobbySession ? (
+            <div className="create-lobby-container">
+              <h2>Create New Lobby</h2>
+              <div className="lobby-settings">
+                <div className="setting">
+                  <label>
+                    Number of Questions:
+                    <select value={questionCount} onChange={(e) => setQuestionCount(Number(e.target.value))}>
+                      {[1, 2, 3, 5, 10, 20].map(num => (
+                          <option key={num} value={num}>{num}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <div className="setting">
+                  <label>
+                    Countdown Seconds:
+                    <select value={countdownSeconds} onChange={(e) => setCountdownSeconds(Number(e.target.value))}>
+                      {[1, 3, 5, 10].map(sec => (
+                          <option key={sec} value={sec}>{sec}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              </div>
+              <div className="start-button-container">
+                <button onClick={createNewLobby}>Create New Lobby</button>
+              </div>
+            </div>
+            // <div>
+            //   {/* Section for creating a new lobby */}
+            //   <button onClick={createNewLobby}>New Lobby</button>
+            // </div>
+        ) : countdownRunning ? (
             <div>
-              {/* Section for creating a new lobby */}
-              <button onClick={createNewLobby}>New Lobby</button>
+              <h2>Get Ready!</h2>
+              <p>Game starts in {(countdownRemainingMs / 1000).toFixed(1)} seconds</p>
             </div>
         ) : !gameStarted ? (
             <div>
-              {/* Section for starting a game within an existing lobby */}
+            {/* Section for starting a game within an existing lobby */}
               <button onClick={startGame}>Start Game</button>
               <div>
                 <p>Share this lobby link:</p>

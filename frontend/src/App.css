@@ -87,4 +87,28 @@ div.error {
   cursor: pointer; /* Optional: Change cursor to indicate it's clickable */
 }
 
+.create-lobby-container {
+  text-align: center;
+}
+
+.lobby-settings {
+  margin-bottom: 20px; /* Adjust spacing as needed */
+}
+
+.setting {
+  margin: 10px; /* Spacing between the inputs */
+  display: inline-block; /* Align inputs side by side */
+}
+
+.start-button-container {
+  text-align: center; /* Center-align the button container */
+}
+
+.start-button-container button {
+  padding: 10px 20px; /* Add some padding to the button */
+  font-size: 1rem; /* Adjust font size as needed */
+  margin-top: 20px; /* Spacing above the button */
+  /* Add any additional button styling as needed */
+}
+
 /* Additional elements like modals, alerts, etc. could be styled here. */
