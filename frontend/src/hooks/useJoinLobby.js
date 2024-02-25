@@ -1,12 +1,10 @@
-import { useEffect, useContext, useRef } from 'react';
+import { useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { AppContext } from '../App'; // Adjust import path as needed
 
 const useJoinLobby = (API_BASE, setLobbySession, setPlayerSession, setError, setLoading, hasJoinedLobby) => {
 
     // Use useParams hook to extract lobby UUID from the URL
     const { lobbyUuid } = useParams(); // Extract lobbyUuid from URL
-    // and using this to very aggressively prevent double execution since the server is responsible for generating and adding the new session, doing it more than once is bad.
 
     useEffect(() => {
         if (lobbyUuid) {
