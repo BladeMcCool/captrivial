@@ -2,8 +2,10 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 	"io/ioutil"
 	"log"
 	"math/rand"
@@ -11,10 +13,6 @@ import (
 	"os"
 	"sync"
 	"time"
-
-	"github.com/gin-contrib/cors"
-	"github.com/gin-gonic/gin"
-	"github.com/gorilla/websocket"
 )
 
 type Question struct {
@@ -113,7 +111,7 @@ func setupServer() (*gin.Engine, *GameServer, error) {
 
 	//router.POST("/game/end", server.EndGameHandler)
 	//router.GET("/questions", server.QuestionsHandler)
-	router.GET("/game/events", server.WsHandler)
+	router.GET("/game/events/:lobbyId/:sessionId", server.WsHandler)
 
 	return router, server, nil
 }
@@ -211,10 +209,10 @@ func (gs *GameServer) StartGameHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"countdownMs": lobby.Countdown, "questionCount": lobby.QuestionCount})
 }
 
-func (gs *GameServer) QuestionsHandler(c *gin.Context) {
-	shuffledQuestions := shuffleQuestions(gs.Questions)
-	c.JSON(http.StatusOK, shuffledQuestions[:10])
-}
+//func (gs *GameServer) QuestionsHandler(c *gin.Context) {
+//	shuffledQuestions := shuffleQuestions(gs.Questions)
+//	c.JSON(http.StatusOK, shuffledQuestions[:10])
+//}
 
 func (gs *GameServer) AnswerHandler(c *gin.Context) {
 	var submittedAnswer struct {
@@ -249,23 +247,23 @@ func (gs *GameServer) AnswerHandler(c *gin.Context) {
 
 }
 
-func (gs *GameServer) EndGameHandler(c *gin.Context) {
-	var request struct {
-		SessionID string `json:"sessionId"`
-	}
-	if err := c.BindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
-		return
-	}
-
-	session, exists := gs.Sessions.GetSession(request.SessionID)
-	if !exists {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid session ID"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"finalScore": session.Score})
-}
+//func (gs *GameServer) EndGameHandler(c *gin.Context) {
+//	var request struct {
+//		SessionID string `json:"sessionId"`
+//	}
+//	if err := c.BindJSON(&request); err != nil {
+//		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+//		return
+//	}
+//
+//	session, exists := gs.Sessions.GetSession(request.SessionID)
+//	if !exists {
+//		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid session ID"})
+//		return
+//	}
+//
+//	c.JSON(http.StatusOK, gin.H{"finalScore": session.Score})
+//}
 
 func (gs *GameServer) GameStatusHandler(c *gin.Context) {
 	lobbyId := c.Param("lobbyId")
@@ -288,30 +286,31 @@ func (gs *GameServer) GameStatusHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, status)
 }
 
-func (gs *GameServer) checkAnswer(questionID string, submittedAnswer int) (bool, error) {
-	for _, question := range gs.Questions {
-		if question.ID == questionID {
-			return question.CorrectIndex == submittedAnswer, nil
-		}
-	}
-	return false, errors.New("question not found")
-}
-
-func shuffleQuestions(questions []*Question) []Question {
-	rand.Seed(time.Now().UnixNano())
-	qs := make([]Question, len(questions))
-
-	// Copy the questions manually, instead of with copy(), so that we can remove
-	// the CorrectIndex property
-	for i, q := range questions {
-		qs[i] = Question{ID: q.ID, QuestionText: q.QuestionText, Options: q.Options}
-	}
-
-	rand.Shuffle(len(qs), func(i, j int) {
-		qs[i], qs[j] = qs[j], qs[i]
-	})
-	return qs
-}
+//
+//func (gs *GameServer) checkAnswer(questionID string, submittedAnswer int) (bool, error) {
+//	for _, question := range gs.Questions {
+//		if question.ID == questionID {
+//			return question.CorrectIndex == submittedAnswer, nil
+//		}
+//	}
+//	return false, errors.New("question not found")
+//}
+//
+//func shuffleQuestions(questions []*Question) []Question {
+//	rand.Seed(time.Now().UnixNano())
+//	qs := make([]Question, len(questions))
+//
+//	// Copy the questions manually, instead of with copy(), so that we can remove
+//	// the CorrectIndex property
+//	for i, q := range questions {
+//		qs[i] = Question{ID: q.ID, QuestionText: q.QuestionText, Options: q.Options}
+//	}
+//
+//	rand.Shuffle(len(qs), func(i, j int) {
+//		qs[i], qs[j] = qs[j], qs[i]
+//	})
+//	return qs
+//}
 
 func loadQuestions() ([]*Question, error) {
 	fileBytes, err := ioutil.ReadFile("questions.json")
@@ -337,7 +336,19 @@ func (gs *GameServer) WsHandler(c *gin.Context) {
 	w := c.Writer
 	r := c.Request
 
-	// Create a ticker that ticks every second
+	// Extracting the lobby ID and player sessionId from the URL path
+	lobbyId := c.Param("lobbyId")
+	if lobbyId == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing lobby ID"})
+		return
+	}
+	sessionId := c.Param("sessionId")
+	if sessionId == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing session ID"})
+		return
+	}
+
+	//// Create a ticker that ticks every second
 	ticker := time.NewTicker(100 * time.Millisecond)
 
 	conn, err := upgrader.Upgrade(w, r, nil)
@@ -345,45 +356,49 @@ func (gs *GameServer) WsHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to establish WebSocket connection"})
 		return
 	}
-	somefunc := func() {
+	cleanup := func() {
 		log.Println("close the websocket conn")
 		conn.Close()
-
+		//
 		log.Println("stop the ticker")
 		ticker.Stop()
 	}
-	defer somefunc()
+	defer cleanup()
 
+	log.Printf("spamming to player session %s in lobby %s", sessionId, lobbyId)
 	spamcount := 0
 	for {
 		select {
 		case <-ticker.C:
 			spamcount++
 			// Send a message every tick
-			message := fmt.Sprintf("Spam message %d from server", spamcount)
-			if err := conn.WriteMessage(websocket.TextMessage, []byte(message)); err != nil {
-				log.Println("Write error:", err)
-				//return // Exit the loop and end the connection on error
+			messageData := struct {
+				MessageType string `json:"messageType"`
+				Content     string `json:"content"`
+				Count       int    `json:"count"`
+			}{
+				MessageType: "Spam",
+				Content:     fmt.Sprintf("Spam message from server"),
+				Count:       spamcount,
 			}
+
+			// Marshal the struct to JSON
+			messageJSON, err := json.Marshal(messageData)
+			if err != nil {
+				log.Println("JSON marshal error:", err)
+				return // Exit the loop and end the connection on error
+			}
+
+			// Send the JSON message
+			if err := conn.WriteMessage(websocket.TextMessage, messageJSON); err != nil {
+				log.Println("Write error:", err)
+				return // Exit the loop and end the connection on error
+			}
+			//message := fmt.Sprintf("Spam message %d from server", spamcount)
+			//if err := conn.WriteMessage(websocket.TextMessage, []byte(message)); err != nil {
+			//	log.Println("Write error:", err)
+			//	return // Exit the loop and end the connection on error
+			//}
 		}
 	}
-	//
-	//for {
-	//	log.Println("send a message down the websocket")
-	//	if err := conn.WriteMessage(messageType, p); err != nil {
-	//		log.Println("ending the loop due to echoing the message back. wait, wtf message?")
-	//		return // Ends the loop if an error occurs
-	//	}
-	//
-	//	//messageType, p, err := conn.ReadMessage()
-	//	//if err != nil {
-	//	//	log.Printf("ending the loop due to error: %s", err.Error())
-	//	//	return // Ends the loop if the connection is closed or an error occurs
-	//	//}
-	//	//// Echo the received message back to the client
-	//	//if err := conn.WriteMessage(messageType, p); err != nil {
-	//	//	log.Println("ending the loop due to echoing the message back. wait, wtf message?")
-	//	//	return // Ends the loop if an error occurs
-	//	//}
-	//}
 }
