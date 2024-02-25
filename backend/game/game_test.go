@@ -6,12 +6,6 @@ import (
 	"time"
 )
 
-//TestGameWaiting //start a game that has a countdown and then verify that the game is "starting" after telling it to start. and verify getting an error if trying to submit answer at that point.
-//TestAllWrongMovesGameAhead //if all players have submitted an answer but nobody got it correct, then move on to the next question.
-//TestNotEnoughQuestionsSelectsAllGiven
-//TestTooManyQuestionsSelectsTheCorrectCount
-//TestPlayerCannotAnswerSameQuestionTwice
-
 // answerQuestions simulates answering questions based on per-question delays and correctness.
 func answerQuestions(t *testing.T, gameLobby *GameLobby, playerID string, delays []int, correctness []bool, nospam bool, wg *sync.WaitGroup) {
 	defer wg.Done()
@@ -185,7 +179,7 @@ func TestAddingLobbiesWithAndWithoutPlayer(t *testing.T) {
 	player := &Player{SessionID: "player1"}
 	lobbies.AddLobby(5, 200, player)
 
-	// Verify there are 2 games in the lobbies
+	// Verify there are 2 lobbies
 	if len(lobbies.lobbies) != 2 {
 		t.Fatalf("Expected 2 games in the lobbies, found %d", len(lobbies.lobbies))
 	}

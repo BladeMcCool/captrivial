@@ -36,7 +36,6 @@ type GameLobby struct {
 
 func NewGameLobby(questionCount, countdown int) *GameLobby {
 	return &GameLobby{
-		//LobbyId:              generateSessionID(), //probably replace this with something better for both session and lobbyid generation. maybe a uuid
 		QuestionCount:        questionCount,
 		Countdown:            countdown,
 		State:                Waiting,
@@ -55,7 +54,6 @@ func (g *GameLobby) GetPlayer(sessionID string) (*Player, error) {
 }
 
 func (g *GameLobby) setShuffledQuestionsFromPool(questions []*Question) {
-	//rand.Seed(time.Now().UnixNano()) //apparently the need to do this is gone as of golang 1.20
 	shuffled := make([]*Question, len(questions))
 	copy(shuffled, questions)
 	rand.Shuffle(len(shuffled), func(i, j int) {
@@ -65,10 +63,10 @@ func (g *GameLobby) setShuffledQuestionsFromPool(questions []*Question) {
 	// If count is 0 or exceeds the length of the question pool, use the entire shuffled pool
 	if g.QuestionCount == 0 || g.QuestionCount > len(shuffled) {
 		g.Questions = shuffled
+	} else {
+		// Use the first 'g.QuestionCount' elements of the shuffled slice
+		g.Questions = shuffled[:g.QuestionCount]
 	}
-
-	// Use the first 'g.QuestionCount' elements of the shuffled slice
-	g.Questions = shuffled[:g.QuestionCount]
 }
 
 func (g *GameLobby) AddPlayer(sessionID string) error {
@@ -108,7 +106,7 @@ func (g *GameLobby) StartGame(questionPool []*Question) error {
 	g.setShuffledQuestionsFromPool(questionPool)
 
 	go func() {
-		// Notification mechanism to connected clients (elaborated below)
+		// Notification mechanism to connected clients - inform them that the game is about to start
 		for _, player := range g.Players {
 			player.SendMessage(map[string]interface{}{
 				"countdownMs": g.Countdown,
@@ -119,7 +117,7 @@ func (g *GameLobby) StartGame(questionPool []*Question) error {
 		g.State = Started
 		g.mutex.Unlock()
 
-		// and how exactly is the question getting in front of the player now?
+		// and how exactly is the question getting in front of the player now? (channels and websockets of course!)
 		g.SendCurrentQuestion()
 	}()
 	return nil
@@ -127,7 +125,7 @@ func (g *GameLobby) StartGame(questionPool []*Question) error {
 
 func (g *GameLobby) SendCurrentQuestion() {
 	question := g.Questions[g.CurrentQuestionIndex]
-	log.Printf("sending next question to all players ...., question id is: %s", question.ID)
+	log.Printf("sending next question to all players ... question id is: %s", question.ID)
 	questionForPlayer := map[string]interface{}{ //suppress the correct answer.
 		"id":           question.ID,
 		"options":      question.Options,
@@ -242,6 +240,7 @@ func (g *GameLobby) GameStatus() GameStatusResult {
 	result.WinningScore = 0
 	scoreToSessions := make(map[int][]string) // Map scores to session IDs
 
+	//GameStatus will typically be called when the game is over. it can be called earlier, but if the game is over lets use the opportunity to close some channels that we wont need anymore.
 	for _, player := range g.Players {
 		score := player.Score
 		scoreToSessions[score] = append(scoreToSessions[score], player.SessionID)

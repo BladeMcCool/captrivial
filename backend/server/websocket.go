@@ -5,7 +5,6 @@ import (
 	"github.com/gorilla/websocket"
 	"log"
 	"net/http"
-	"time"
 )
 
 var upgrader = websocket.Upgrader{
@@ -47,22 +46,20 @@ func (gs *GameServer) WsHandler(c *gin.Context) {
 		return
 	}
 
-	//just want a flow of events for some debugging
-	ticker := time.NewTicker(time.Duration(1) * time.Second)
 	cleanup := func() {
 		log.Println("close the websocket conn")
 		conn.Close()
-		//
-		log.Println("stop the ticker")
-		ticker.Stop()
 	}
 	defer cleanup()
 
-	spamcount := 0
-
 	for {
 		select {
-		case message := <-player.MessageChannel:
+		case message, ok := <-player.MessageChannel:
+			if !ok {
+				// The channel was closed; exit the loop
+				log.Println("Message channel closed.")
+				return
+			}
 			log.Printf("sending a message like this: %+v", message)
 			if err := conn.WriteJSON(message); err != nil {
 				// Handle error: failed to send message
@@ -70,33 +67,6 @@ func (gs *GameServer) WsHandler(c *gin.Context) {
 				log.Println("Write error:", err)
 				return
 			}
-		case <-ticker.C:
-			spamcount++
-			// Send a message every tick
-			//messageData := struct {
-			//	MessageType string `json:"messageType"`
-			//	Content     string `json:"content"`
-			//	Count       int    `json:"count"`
-			//}{
-			//	MessageType: "Spam",
-			//	Content:     fmt.Sprintf("Spam message from server"),
-			//	Count:       spamcount,
-			//}
-			//
-			//// Marshal the struct to JSON
-			//messageJSON, err := json.Marshal(messageData)
-			//if err != nil {
-			//	log.Println("JSON marshal error:", err)
-			//	return // Exit the loop and end the connection on error
-			//}
-			//
-			//// Send the JSON message
-			//if err := conn.WriteMessage(websocket.TextMessage, messageJSON); err != nil {
-			//	log.Println("Write error:", err)
-			//	return // Exit the loop and end the connection on error
-			//}
 		}
-
 	}
-
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/ProlificLabs/captrivia/game"
 	"github.com/ProlificLabs/captrivia/server"
 	"github.com/google/uuid"
 	"io/ioutil"
@@ -225,14 +226,14 @@ func TestFullGameSinglePlayer(t *testing.T) {
 	resp, err = http.Get(testHttpServer.URL + "/game/status/" + response.LobbyId)
 	defer resp.Body.Close()
 
-	var gameStatusResponse GameStatusResult
+	var gameStatusResponse game.GameStatusResult
 	err = json.NewDecoder(resp.Body).Decode(&gameStatusResponse)
 	if err != nil {
 		t.Fatalf("Failed to decode JSON response: %v", err)
 	}
 
 	//at this point the game status should be concluded.
-	if gameStatusResponse.State != Ended {
+	if gameStatusResponse.State != game.Ended {
 		t.Fatalf("last question was answered and points awarded - game should be over now.")
 	}
 	if gameStatusResponse.WinningScore != 30 { //3 questions, 10 points each
@@ -327,7 +328,7 @@ func TestFullGameMultiPlayer(t *testing.T) {
 	if !found {
 		t.Fatalf("expected lobby %s was not found", response.LobbyId)
 	}
-	if lobby.State != Started {
+	if lobby.State != game.Started {
 		t.Fatalf("expected lobby to have started the game, but it was in a different state: %d", lobby.State) //TODO implement some stringification for the state enum iota values ...
 	}
 
@@ -354,14 +355,14 @@ func TestFullGameMultiPlayer(t *testing.T) {
 	resp, err = http.Get(testHttpServer.URL + "/game/status/" + response.LobbyId)
 	defer resp.Body.Close()
 
-	var gameStatusResponse GameStatusResult
+	var gameStatusResponse game.GameStatusResult
 	err = json.NewDecoder(resp.Body).Decode(&gameStatusResponse)
 	if err != nil {
 		t.Fatalf("Failed to decode JSON response: %v", err)
 	}
 
 	//at this point the game status should be concluded.
-	if gameStatusResponse.State != Ended {
+	if gameStatusResponse.State != game.Ended {
 		t.Fatalf("last question was answered and points awarded - game should be over now.")
 	}
 	if gameStatusResponse.WinningScore != 20 { //player 2 should have got the two that were submitted correct.
