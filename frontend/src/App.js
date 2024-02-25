@@ -1,22 +1,21 @@
 import React, {useEffect, useRef, useState} from "react";
 import "./App.css";
 import { useParams } from "react-router-dom"; // Import useParams hook
+import LobbyCreation from './components/lobbyCreation';
+import StartGame from './components/startGame';
+import GameOver from './components/gameOver';
+import PickAnswer from "./components/pickAnswer";
+import Countdown from "./components/countdown";
 
 // Use REACT_APP_BACKEND_URL or http://localhost:8080 as the API_BASE
 const API_BASE = process.env.REACT_APP_BACKEND_URL || "http://localhost:8080";
 
 function App() {
-  // TODO make these inputs on the screen, with a minimum countdown MS like 3000
-  // const countDownMs = 1000
-  // const questionCount = 2
-
   const [lobbySession, setLobbySession] = useState(null);
   const [playerSession, setPlayerSession] = useState(null);
   const [questions, setQuestions] = useState([]);
-  // const [gameParams, setGameParams] = useState({});
   const [gameStarted, setGameStarted] = useState(false);
   const [gameEnded, setGameEnded] = useState(false);
-  // const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [score, setScore] = useState(0);
   const [winnerMessage, setWinnerMessage] = useState(null);
   const [winningScore, setWinningScore] = useState(0);
@@ -26,9 +25,6 @@ function App() {
   const [countdownSeconds, setCountdownSeconds] = useState(5);
   const [countdownRunning, setCountdownRunning] = useState(false);
   const [countdownRemainingMs, setCountdownRemainingMs] = useState(0);
-
-  // const [ws, setWs] = useState(null); // Store WebSocket connection
-  // const [serverMessage, setServerMessage] = useState('');
 
   // Effect for WebSocket setup
   useEffect(() => {
@@ -164,18 +160,6 @@ function App() {
       } catch (err) {
         setError(err.message);
       }
-
-      // const res = await fetch(`${API_BASE}/game/newlobby`, {
-      //   method: "POST",
-      //   headers: {
-      //     "Content-Type": "application/json",
-      //   },
-      // });
-      // const data = await res.json();
-      // setGameSession(data.sessionId);
-      // setLobbySession(data.lobbyId);
-      // setGameParams(data);
-      // fetchQuestions();
     } catch (err) {
       setError("Failed to create lobby");
     }
@@ -311,123 +295,38 @@ function App() {
   if (error) return <div className="error">Error: {error}</div>;
   if (loading) return <div className="loading">Loading...</div>;
 
-  // return (
-  //   <div className="App">
-  //     {/* New WebSocket message display */}
-  //     <div className="websocket-panel">
-  //       Server Says: {serverMessage}
-  //     </div>
-  //
-  //     {!playerSession ? (
-  //       <button onClick={startGame}>Start Game</button>
-  //     ) : (
-  //       <div>
-  //         <h3>{questions[currentQuestionIndex]?.questionText}</h3>
-  //         {questions[currentQuestionIndex]?.options.map((option, index) => (
-  //           <button
-  //             key={index} // Key should be unique for each child in a list, use index as the key
-  //             onClick={() => submitAnswer(index)} // Pass index instead of option
-  //             className="option-button"
-  //           >
-  //             {option}
-  //           </button>
-  //         ))}
-  //         <p>yay frontend</p>
-  //         <p className="score">Score: {score}</p>
-  //       </div>
-  //     )}
-  //   </div>
-  // );
-
-  const copyToClipboard = (text) => {
-    navigator.clipboard.writeText(text).then(() => {
-      // Optionally, show a message confirming that the text was copied
-      console.log("Lobby link copied to clipboard!");
-    }, (err) => {
-      console.error('Could not copy text: ', err);
-    });
-  };
-
   return (
       <div className="App">
         {!lobbySession ? (
-            <div className="create-lobby-container">
-              <h2>Create New Lobby</h2>
-              <div className="lobby-settings">
-                <div className="setting">
-                  <label>
-                    Number of Questions:
-                    <select value={questionCount} onChange={(e) => setQuestionCount(Number(e.target.value))}>
-                      {[1, 2, 3, 5, 10, 20].map(num => (
-                          <option key={num} value={num}>{num}</option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-                <div className="setting">
-                  <label>
-                    Countdown Seconds:
-                    <select value={countdownSeconds} onChange={(e) => setCountdownSeconds(Number(e.target.value))}>
-                      {[1, 3, 5, 10].map(sec => (
-                          <option key={sec} value={sec}>{sec}</option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-              </div>
-              <div className="start-button-container">
-                <button onClick={createNewLobby}>Create New Lobby</button>
-              </div>
-            </div>
-            // <div>
-            //   {/* Section for creating a new lobby */}
-            //   <button onClick={createNewLobby}>New Lobby</button>
-            // </div>
+            <LobbyCreation
+                questionCount={questionCount}
+                setQuestionCount={setQuestionCount}
+                countdownSeconds={countdownSeconds}
+                setCountdownSeconds={setCountdownSeconds}
+                createNewLobby={createNewLobby}
+            />
         ) : countdownRunning ? (
-            <div>
-              <h2>Get Ready!</h2>
-              <p>Game starts in {(countdownRemainingMs / 1000).toFixed(1)} seconds</p>
-            </div>
+            <Countdown
+                countdownRemainingMs={countdownRemainingMs}
+            />
         ) : !gameStarted ? (
-            <div>
-            {/* Section for starting a game within an existing lobby */}
-              <button onClick={startGame}>Start Game</button>
-              <div>
-                <p>Share this lobby link:</p>
-                <input
-                    type="text"
-                    value={`${window.location.origin}/lobby/${lobbySession}`}
-                    readOnly
-                    onClick={(e) => {
-                      e.target.select(); // Select the text to visually indicate that it's ready to be copied
-                      copyToClipboard(e.target.value); // Call the function to copy the text
-                    }}
-                    className="lobby-link-input"
-                />
-                <p>Click the link to copy and share it with others to join this lobby.</p>
-              </div>
-            </div>
+            <StartGame
+                lobbySession={lobbySession}
+                startGame={startGame}
+            />
         ) : gameEnded ? (
-            <div>
-              <div>
-                <h2>Game Over</h2>
-                <p>{winnerMessage}</p>
-                <p>Your Score: {score}</p>
-                <p>Winning Score: {winningScore}</p>
-                <button onClick={resetGame}>Reset Game</button>
-              </div>
-            </div>
+            <GameOver
+                winnerMessage={winnerMessage}
+                score={score}
+                winningScore={winningScore}
+                resetGame={resetGame}
+            />
         ) : (
-            <div>
-            {/* Game session UI */}
-              <h3>{questions[questions.length - 1]?.questionText}</h3>
-              {questions[questions.length-1]?.options.map((option, index) => (
-                  <button key={index} onClick={() => submitAnswer(index)} className="option-button">
-                    {option}
-                  </button>
-              ))}
-              <p className="score">Score: {score}</p>
-            </div>
+            <PickAnswer
+                questions={questions}
+                score={score}
+                submitAnswer={submitAnswer}
+            />
         )}
       </div>
   );
