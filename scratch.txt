@@ -41,6 +41,7 @@ please enumerate the requirements listed above and your solution for each step, 
 windows cmd curl: (debug note)
 curl -v -H "Content-Type: application/json" -d "{\"questionCount\":3,\"countdownMs\":5000}" http://localhost:8080/game/newlobby
 curl -v http://localhost:8080/game/joinlobby/740ee5bc-0acc-4ff7-9483-4f65ea652638 //using a GET request b/c the url is supposed to be share-able, and i expect ppl to be able to copy/paste it into browser address bar.
+7z a -r ../archive.zip .\ -x!node_modules\
 -------------------
 additonal considerations:
 player names so that when the game is over we can show player names instead of just a session id of any player that isnt "you"
