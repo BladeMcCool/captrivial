@@ -8,6 +8,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"log"
 	"os"
+	"strconv"
+	"time"
 )
 
 func main() {
@@ -31,13 +33,17 @@ func main() {
 // setupServer configures and returns a new Gin instance with all routes.
 // It also returns an error if there is a failure in setting up the server, e.g. loading questions.
 func setupServer() (*gin.Engine, *server.GameServer, error) {
-	questions, err := loadQuestions()
+	// Use the QUESTIONS_FILE environment variable if it exists; otherwise, default to "questions.json"
+	questionsFilePath := os.Getenv("QUESTIONS_FILE")
+	cleanupLobbyIntervalMinutes := os.Getenv("CLEANUP_LOBBIES_EVERY_N_MINUTES")
+
+	questions, err := loadQuestions(questionsFilePath)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	//sessions := &SessionStore{Sessions: make(map[string]*PlayerSession)}
-	lobbies := game.NewLobbies()
+	lobbies := game.NewLobbies(getLobbyCleanupIntervalDuration(cleanupLobbyIntervalMinutes))
+	lobbies.StartCleanupRoutine()
 	server := server.NewGameServer(questions, lobbies)
 
 	// Create Gin router and setup routes
@@ -59,9 +65,7 @@ func setupServer() (*gin.Engine, *server.GameServer, error) {
 	return router, server, nil
 }
 
-func loadQuestions() ([]*game.Question, error) {
-	// Use the QUESTIONS_FILE environment variable if it exists; otherwise, default to "questions.json"
-	filePath := os.Getenv("QUESTIONS_FILE")
+func loadQuestions(filePath string) ([]*game.Question, error) {
 	if filePath == "" {
 		filePath = "questions.json"
 	}
@@ -78,4 +82,14 @@ func loadQuestions() ([]*game.Question, error) {
 	}
 
 	return questions, nil
+}
+
+func getLobbyCleanupIntervalDuration(settingFromEnv string) time.Duration {
+	minutes, err := strconv.Atoi(settingFromEnv)
+	if err != nil {
+		//just default to five minutes if no or invalid env var value was passed.
+		minutes = 15
+	}
+	log.Printf("will clean up old lobbies every %d minutes", minutes)
+	return time.Duration(minutes) * time.Minute
 }

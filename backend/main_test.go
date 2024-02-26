@@ -6,7 +6,7 @@ import (
 	"github.com/ProlificLabs/captrivia/game"
 	"github.com/ProlificLabs/captrivia/server"
 	"github.com/google/uuid"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -82,10 +82,10 @@ func TestNewLobbyHandler(t *testing.T) {
 
 func TestJoinLobbyHandler(t *testing.T) {
 	resp, err := http.Post(testHttpServer.URL+"/game/newlobby", "application/json", strings.NewReader(fmt.Sprintf(`{"questionCount":%d, "countdownMs":%d}`, 5, 100)))
-	defer resp.Body.Close()
 	if err != nil {
 		t.Fatalf("Failed to make request: %v", err)
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("Expected status OK; got %v", resp.Status)
@@ -108,10 +108,10 @@ func TestJoinLobbyHandler(t *testing.T) {
 
 	// Now join this lobby as a 2nd player.
 	resp, err = http.Get(testHttpServer.URL + "/game/joinlobby/" + response.LobbyId)
-	defer resp.Body.Close()
 	if err != nil {
 		t.Fatalf("Failed to make request: %v", err)
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("Expected status OK; got %v", resp.Status)
 	}
@@ -121,10 +121,10 @@ func TestJoinLobbyHandler(t *testing.T) {
 func TestFullGameSinglePlayer(t *testing.T) {
 	// Start a new game
 	resp, err := http.Post(testHttpServer.URL+"/game/newlobby", "application/json", strings.NewReader(fmt.Sprintf(`{"questionCount":%d, "countdownMs":%d}`, 3, 100)))
-	defer resp.Body.Close()
 	if err != nil {
 		t.Fatalf("Failed to make request: %v", err)
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("Expected status OK; got %v", resp.Status)
@@ -150,10 +150,10 @@ func TestFullGameSinglePlayer(t *testing.T) {
 	}
 
 	resp, err = http.Post(testHttpServer.URL+"/game/start", "application/json", strings.NewReader(fmt.Sprintf(`{"lobbyId":"%s","sessionId":"%s"}`, response.LobbyId, response.SessionId)))
-	defer resp.Body.Close()
 	if err != nil {
 		t.Fatalf("Failed to start a new game: %v", err)
 	}
+	defer resp.Body.Close()
 
 	// Check for the correct status code
 	if resp.StatusCode != http.StatusOK {
@@ -161,7 +161,7 @@ func TestFullGameSinglePlayer(t *testing.T) {
 	}
 
 	// JSON response will tell us when the game is starting (mostly just informational since we should be subscribing to an event stream of some kind to actually get the first question)
-	//bodyBytes, err := ioutil.ReadAll(resp.Body)
+	//bodyBytes, err := io.ReadAll(resp.Body)
 	//if err != nil {
 	//	t.Fatalf("Failed to read response body: %v", err)
 	//}
@@ -184,8 +184,11 @@ func TestFullGameSinglePlayer(t *testing.T) {
 
 	//attempt to just submit some answer to the first question, even though the game isn't started. should get some kind of error response.
 	resp, err = http.Post(testHttpServer.URL+"/game/answer", "application/json", strings.NewReader(fmt.Sprintf(`{"sessionId":"%s", "lobbyId":"%s", "questionId":"%s", "answer":%d}`, response.SessionId, response.LobbyId, "", 0)))
+	if err != nil {
+		t.Fatalf("Failed to submit answer: %v", err)
+	}
 	defer resp.Body.Close()
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatalf("Failed to read response body: %v", err)
 	}
@@ -212,6 +215,9 @@ func TestFullGameSinglePlayer(t *testing.T) {
 		submitAnswer := lobby.Questions[lobby.CurrentQuestionIndex].CorrectIndex
 		submitQuestionId := lobby.Questions[lobby.CurrentQuestionIndex].ID
 		resp, err = http.Post(testHttpServer.URL+"/game/answer", "application/json", strings.NewReader(fmt.Sprintf(`{"sessionId":"%s", "lobbyId":"%s", "questionId":"%s", "answer":%d}`, response.SessionId, response.LobbyId, submitQuestionId, submitAnswer)))
+		if err != nil {
+			t.Fatalf("Failed to submit answer: %v", err)
+		}
 		defer resp.Body.Close()
 		err = json.NewDecoder(resp.Body).Decode(&submitAnswerResponse)
 		if err != nil {
@@ -224,6 +230,9 @@ func TestFullGameSinglePlayer(t *testing.T) {
 
 	//call to the game status endpoint just to confirm we got the expected result
 	resp, err = http.Get(testHttpServer.URL + "/game/status/" + response.LobbyId)
+	if err != nil {
+		t.Fatalf("Failed to get game status: %v", err)
+	}
 	defer resp.Body.Close()
 
 	var gameStatusResponse game.GameStatusResult
@@ -258,10 +267,10 @@ type joinGameResponse struct {
 func TestFullGameMultiPlayer(t *testing.T) {
 	// Start a new game
 	resp, err := http.Post(testHttpServer.URL+"/game/newlobby", "application/json", strings.NewReader(fmt.Sprintf(`{"questionCount":%d, "countdownMs":%d}`, 3, 100)))
-	defer resp.Body.Close()
 	if err != nil {
 		t.Fatalf("Failed to make request: %v", err)
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("Expected status OK; got %v", resp.Status)
@@ -286,10 +295,10 @@ func TestFullGameMultiPlayer(t *testing.T) {
 
 	// Now join this lobby as a 2nd player.
 	resp, err = http.Get(testHttpServer.URL + "/game/joinlobby/" + response.LobbyId)
-	defer resp.Body.Close()
 	if err != nil {
 		t.Fatalf("Failed to make request: %v", err)
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("Expected status OK; got %v", resp.Status)
 	}
@@ -302,10 +311,10 @@ func TestFullGameMultiPlayer(t *testing.T) {
 	player2SessionId := p2response.SessionId
 
 	resp, err = http.Post(testHttpServer.URL+"/game/start", "application/json", strings.NewReader(fmt.Sprintf(`{"lobbyId":"%s","sessionId":"%s"}`, response.LobbyId, player2SessionId)))
-	defer resp.Body.Close()
 	if err != nil {
 		t.Fatalf("Failed to start a new game: %v", err)
 	}
+	defer resp.Body.Close()
 
 	// Check for the correct status code
 	if resp.StatusCode != http.StatusOK {
@@ -341,8 +350,8 @@ func TestFullGameMultiPlayer(t *testing.T) {
 		submitAnswer := lobby.Questions[lobby.CurrentQuestionIndex].CorrectIndex
 		submitQuestionId := lobby.Questions[lobby.CurrentQuestionIndex].ID
 		resp, err = http.Post(testHttpServer.URL+"/game/answer", "application/json", strings.NewReader(fmt.Sprintf(`{"sessionId":"%s", "lobbyId":"%s", "questionId":"%s", "answer":%d}`, submitterSessionIds[i], response.LobbyId, submitQuestionId, submitAnswer)))
-		defer resp.Body.Close()
 		err = json.NewDecoder(resp.Body).Decode(&submitAnswerResponse)
+		defer resp.Body.Close()
 		if err != nil {
 			t.Fatalf("Failed to decode JSON response: %v", err)
 		}
@@ -353,6 +362,9 @@ func TestFullGameMultiPlayer(t *testing.T) {
 
 	//call to the game status endpoint just to confirm we got the expected result
 	resp, err = http.Get(testHttpServer.URL + "/game/status/" + response.LobbyId)
+	if err != nil {
+		t.Fatalf("Failed to get game status: %v", err)
+	}
 	defer resp.Body.Close()
 
 	var gameStatusResponse game.GameStatusResult

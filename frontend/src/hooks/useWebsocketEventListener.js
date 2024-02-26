@@ -49,7 +49,7 @@ const useWebsocketEventListener = (API_BASE, playerSession, lobbySession, setGam
             console.log('Closing WebSocket...');
             websocket.close();
         };
-    // TODO learn about the callback stuff that could maybe solve this lint
+    // TODO learn about the useCallback stuff that could maybe solve this lint
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [playerSession, lobbySession]); // Re-connect WebSocket if playerSession or lobby changes
 

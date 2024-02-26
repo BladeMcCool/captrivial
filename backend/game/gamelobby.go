@@ -25,13 +25,13 @@ const (
 
 type GameLobby struct {
 	mutex                sync.Mutex
-	LobbyId              string
 	QuestionCount        int
 	Countdown            int // milliseconds
 	State                GameState
 	Players              []*Player
 	CurrentQuestionIndex int
 	Questions            []*Question
+	LastGameInteraction  time.Time
 }
 
 func NewGameLobby(questionCount, countdown int) *GameLobby {
@@ -42,6 +42,10 @@ func NewGameLobby(questionCount, countdown int) *GameLobby {
 		Players:              make([]*Player, 0),
 		CurrentQuestionIndex: 0,
 	}
+}
+
+func (g *GameLobby) SetLastGameInteraction() {
+	g.LastGameInteraction = time.Now()
 }
 
 func (g *GameLobby) GetPlayer(sessionID string) (*Player, error) {
@@ -76,7 +80,6 @@ func (g *GameLobby) AddPlayer(sessionID string) error {
 	if g.State != Waiting {
 		return errors.New("cannot add player, lobby is not in waiting state")
 	}
-
 	// Check if the sessionID is already in the list of players
 	for _, player := range g.Players {
 		if player.SessionID == sessionID {
@@ -90,6 +93,8 @@ func (g *GameLobby) AddPlayer(sessionID string) error {
 		QuestionsAnswered: []string{},
 		MessageChannel:    make(chan Message, g.QuestionCount+2), // Plus 2 for start and finish messages
 	})
+	g.SetLastGameInteraction()
+
 	// TODO dont forget to close(player.MessageChannel) at some point (how about when the game is done?)
 	return nil
 }
@@ -100,10 +105,11 @@ func (g *GameLobby) StartGame(questionPool []*Question) error {
 		return errors.New("Game already started")
 	}
 	g.State = Starting
-	g.mutex.Unlock()
 
 	// Set the shuffled questions for the game
 	g.setShuffledQuestionsFromPool(questionPool)
+	g.SetLastGameInteraction()
+	g.mutex.Unlock()
 
 	go func() {
 		// Notification mechanism to connected clients - inform them that the game is about to start
@@ -118,12 +124,12 @@ func (g *GameLobby) StartGame(questionPool []*Question) error {
 		g.mutex.Unlock()
 
 		// and how exactly is the question getting in front of the player now? (channels and websockets of course!)
-		g.SendCurrentQuestion()
+		g.sendCurrentQuestion()
 	}()
 	return nil
 }
 
-func (g *GameLobby) SendCurrentQuestion() {
+func (g *GameLobby) sendCurrentQuestion() {
 	question := g.Questions[g.CurrentQuestionIndex]
 	log.Printf("sending next question to all players ... question id is: %s", question.ID)
 	questionForPlayer := map[string]interface{}{ //suppress the correct answer.
@@ -138,7 +144,7 @@ func (g *GameLobby) SendCurrentQuestion() {
 	}
 }
 
-func (g *GameLobby) SendGameOver() {
+func (g *GameLobby) sendGameOver() {
 	for _, player := range g.Players {
 		player.SendMessage(map[string]bool{
 			"gameOver": true,
@@ -217,15 +223,16 @@ func (g *GameLobby) allPlayersAnswered(questionID string) bool {
 }
 
 func (g *GameLobby) setNextQuestionOrEndGame() {
+	g.SetLastGameInteraction()
 	// Increment the current question index or end the game if all questions are answered
 	if g.CurrentQuestionIndex < len(g.Questions)-1 {
 		g.CurrentQuestionIndex++
-		g.SendCurrentQuestion()
+		g.sendCurrentQuestion()
 	} else {
 		// This was the last question, so end the game
 		g.CurrentQuestionIndex = 0
 		g.State = Ended
-		g.SendGameOver()
+		g.sendGameOver()
 	}
 }
 
@@ -238,7 +245,6 @@ func (g *GameLobby) GameStatus() GameStatusResult {
 	result.WinningScore = 0
 	scoreToSessions := make(map[int][]string) // Map scores to session IDs
 
-	//GameStatus will typically be called when the game is over. it can be called earlier, but if the game is over lets use the opportunity to close some channels that we wont need anymore.
 	for _, player := range g.Players {
 		score := player.Score
 		scoreToSessions[score] = append(scoreToSessions[score], player.SessionID)

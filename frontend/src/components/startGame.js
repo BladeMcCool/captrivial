@@ -28,9 +28,12 @@ const StartGame = ({ lobbySession, playerSession, setLoading, setError }) => {
                 }),
             });
             const data = await res.json();
+            if (!res.ok) {
+                throw new Error("non-ok response from error");
+            }
             console.log("got data from start game:", data)
         } catch (err) {
-            setError("Failed to start game.");
+            setError("Failed to start game. " + err.message);
         }
         setLoading(false);
     };

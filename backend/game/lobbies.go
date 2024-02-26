@@ -2,19 +2,23 @@ package game
 
 import (
 	"github.com/google/uuid"
+	"log"
 	"sync"
+	"time"
 )
 
 // TODO consider about cleanup of lobbies, perhaps when a game ends something can clean it out.
 type Lobbies struct {
-	mutex   sync.Mutex
-	lobbies map[string]*GameLobby
+	mutex           sync.Mutex
+	lobbies         map[string]*GameLobby
+	cleanupInterval time.Duration // Cleanup interval in minutes
 }
 
 // NewLobbies creates and returns a new Lobbies instance
-func NewLobbies() *Lobbies {
+func NewLobbies(cleanupInterval time.Duration) *Lobbies {
 	return &Lobbies{
-		lobbies: make(map[string]*GameLobby),
+		lobbies:         make(map[string]*GameLobby),
+		cleanupInterval: cleanupInterval,
 	}
 }
 
@@ -46,4 +50,37 @@ func (l *Lobbies) AddLobby(questionCount, countdown int, player *Player) string 
 	// Add the new lobby to the lobbies map
 	l.lobbies[newLobbyID] = newLobby
 	return newLobbyID
+}
+
+func (l *Lobbies) StartCleanupRoutine() {
+	log.Printf("starting cleanup routine ...")
+	go func() {
+		for {
+			time.Sleep(1 * time.Minute) // Run this check every minute
+			l.cleanupExpiredLobbies()
+		}
+	}()
+}
+
+func (l *Lobbies) cleanupExpiredLobbies() {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+	log.Printf("running cleanup routine ...")
+	for id, lobby := range l.lobbies {
+		lobby.mutex.Lock()
+		log.Printf("running cleanup routine ... checking on lobby id %s", id)
+		// Determine if the lobby is expired
+		if time.Since(lobby.LastGameInteraction) > l.cleanupInterval {
+			log.Printf("removing old lobby uuid %s, closing message channels of %d gamelobby players", id, len(lobby.Players))
+			// Perform cleanup for this lobby
+			// This should include closing player channels, removing players, etc.
+			// For example, closing player channels (simplified):
+			for _, player := range lobby.Players {
+				close(player.MessageChannel)
+			}
+			// Remove the lobby from the map
+			delete(l.lobbies, id)
+		}
+		lobby.mutex.Unlock()
+	}
 }
