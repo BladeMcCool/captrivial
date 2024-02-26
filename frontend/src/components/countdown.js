@@ -15,7 +15,7 @@ const Countdown = ({ countdownRemainingMs, countdownRunning, setCountdownRemaini
         }
 
         return () => clearInterval(intervalId); // Cleanup interval on unmount or when countdownRemainingMs becomes 0 or less
-    }, [countdownRunning]);
+    }, [countdownRunning, countdownRemainingMs, setCountdownRemainingMs, setCountdownRunning ]);
 
     return (
         <div>

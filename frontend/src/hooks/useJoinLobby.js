@@ -42,7 +42,7 @@ const useJoinLobby = (API_BASE, setLobbySession, setPlayerSession, setError, set
                 joinLobby();
             }
         }
-    }, [lobbyUuid, setLobbySession, setPlayerSession, setError, setLoading, API_BASE]);
+    }, [lobbyUuid, setLobbySession, setPlayerSession, setError, setLoading, API_BASE, hasJoinedLobby]);
 };
 
 export default useJoinLobby;

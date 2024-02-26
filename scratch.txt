@@ -43,6 +43,7 @@ curl -v -H "Content-Type: application/json" -d "{\"questionCount\":3,\"countdown
 curl -v http://localhost:8080/game/joinlobby/740ee5bc-0acc-4ff7-9483-4f65ea652638 //using a GET request b/c the url is supposed to be share-able, and i expect ppl to be able to copy/paste it into browser address bar.
 -------------------
 additonal considerations:
+player names so that when the game is over we can show player names instead of just a session id of any player that isnt "you"
 more visual notification that you answered wrong (and a 'can't answer twice' or something notice for trying again after getting it wrong!)
     perhaps after answering wrong, the question should swap out and just say a big red x above the score, until the next question comes in (i like it)
 ready check before start can be engaged? all players would have to ready up

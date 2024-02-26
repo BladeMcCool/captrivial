@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import useEndGame from "./useEndGame";
 
-const useWebsocketEventListener = (API_BASE, playerSession, lobbySession, setGameStarted, setCountdownRunning, setCountdownRemainingMs, setQuestions, setGameEnded, setWinnerMessage, setWinningScore, setError, setLoading) => {
+const useWebsocketEventListener = (API_BASE, playerSession, lobbySession, setGameStarted, setCountdownRunning, setCountdownRemainingMs, setQuestions, setGameEnded, setWinnerMessage, setWinningScore, setError, setLoading, setNoPointsAwarded, setCurrentQuestionAnswered) => {
     // Effect for WebSocket setup
     const endGame = useEndGame();
 
@@ -24,10 +24,12 @@ const useWebsocketEventListener = (API_BASE, playerSession, lobbySession, setGam
                 setGameStarted(true)
                 setCountdownRunning(false)
                 setCountdownRemainingMs(0)
+                setNoPointsAwarded(false)
                 setQuestions(prev => [...prev, data.question]);
-                // setCurrentQuestionIndex(prevIndex => prevIndex + 1); // Move to the new question
+                console.log("saying we have not answered the current question")
+                setCurrentQuestionAnswered(false)
             } else if (data.countdownMs) {
-                console.log("maybe show some kind of ticker for this many ms:", data.countdownMs)
+                console.log("show countdown ticker for this many ms:", data.countdownMs)
                 setCountdownRunning(true)
                 setCountdownRemainingMs(data.countdownMs)
             } else if (data.gameOver) {
@@ -47,7 +49,9 @@ const useWebsocketEventListener = (API_BASE, playerSession, lobbySession, setGam
             console.log('Closing WebSocket...');
             websocket.close();
         };
-    }, [playerSession, lobbySession]); // Re-connect WebSocket if playerSession changes
+    // TODO learn about the callback stuff that could maybe solve this lint
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [playerSession, lobbySession]); // Re-connect WebSocket if playerSession or lobby changes
 
 }
 export default useWebsocketEventListener;

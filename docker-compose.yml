@@ -27,6 +27,9 @@ services:
       - type: bind
         source: ./frontend
         target: /app
+        # having issues with the node_modules in the volume being out of date/broken? try this:
+        # docker-compose down -v # This removes the volumes along with the containers
+        # docker-compose up --build # Rebuild and start the containers
       - type: volume
         source: node_modules
         target: /app/node_modules

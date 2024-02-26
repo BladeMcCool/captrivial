@@ -173,10 +173,8 @@ func (g *GameLobby) SubmitAnswer(playerSessionID string, questionID string, answ
 	}
 
 	if player == nil {
-		log.Printf("pnf!")
 		return errors.New("player not found"), 0
 	}
-	log.Printf("here1")
 	// If this player already recorded an answer for this question, then reject this answer.
 	if player.HasAnsweredQuestion(questionID) {
 		return errors.New("player already answered this question"), 0

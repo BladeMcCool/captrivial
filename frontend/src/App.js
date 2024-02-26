@@ -16,9 +16,11 @@ function App() {
   const [lobbySession, setLobbySession] = useState(null);
   const [playerSession, setPlayerSession] = useState(null);
   const [questions, setQuestions] = useState([]);
+  const [currentQuestionAnswered, setCurrentQuestionAnswered] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
   const [gameEnded, setGameEnded] = useState(false);
   const [score, setScore] = useState(0);
+  const [noPointsAwarded, setNoPointsAwarded] = useState(false);
   const [winnerMessage, setWinnerMessage] = useState(null);
   const [winningScore, setWinningScore] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -29,7 +31,7 @@ function App() {
   const [countdownRemainingMs, setCountdownRemainingMs] = useState(0);
   const hasJoinedLobby = useRef(false); // using this to very aggressively prevent double execution of lobby-joining since the server is responsible for generating and adding the new session, doing it more than once is bad.
 
-  useWebsocketEventListener(API_BASE, playerSession, lobbySession, setGameStarted, setCountdownRunning, setCountdownRemainingMs, setQuestions, setGameEnded, setWinnerMessage, setWinningScore, setError, setLoading)
+  useWebsocketEventListener(API_BASE, playerSession, lobbySession, setGameStarted, setCountdownRunning, setCountdownRemainingMs, setQuestions, setGameEnded, setWinnerMessage, setWinningScore, setError, setLoading, setNoPointsAwarded, setCurrentQuestionAnswered)
   useJoinLobby(API_BASE, setLobbySession, setPlayerSession, setError, setLoading, hasJoinedLobby);
 
   if (error) return <div className="error">Error: {error}</div>;
@@ -78,6 +80,11 @@ function App() {
                 setGameStarted={setGameStarted}
                 setGameEnded={setGameEnded}
             />
+        ) : noPointsAwarded && currentQuestionAnswered ? (
+            <div>
+              <h2>Incorrect Response, Sorry!</h2>
+              <p>Please wait while the next question is being transferred</p>
+            </div>
         ) : (
             <PickAnswer
                 questions={questions}
@@ -87,6 +94,8 @@ function App() {
                 setScore={setScore}
                 setError={setError}
                 setLoading={setLoading}
+                setNoPointsAwarded={setNoPointsAwarded}
+                setCurrentQuestionAnswered={setCurrentQuestionAnswered}
             />
         )}
       </div>
