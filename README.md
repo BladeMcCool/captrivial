@@ -1,5 +1,10 @@
 # CapTrivia: Cap Table Trivia Game
 
+### Pulley take home assessment - 2024-02-25 (Feb 25 2024)
+I spent about 3 days to take it from its initial basic state and transformed it into a real time multiplayer trivia game where players could compete to be the first to answer questions. A websocket to the connected clients pushed the updates down to a React front end. Players could join a game via a shareable link. The project was dockerized.
+
+***
+
 ## Introduction
 Welcome to CapTrivia, a cap table trivia game developed by Pulley. This project is part of our engineering interview process, designed to assess your coding skills and problem-solving abilities. Currently, CapTrivia is a simple, single-player game. Your challenge is to develop it into a multiplayer experience.
 
